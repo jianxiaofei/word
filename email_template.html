@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日单词</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .header .date {
+            margin-top: 10px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .content {
+            background-color: white;
+            padding: 0;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .word-card {
+            padding: 25px 30px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .word-card:last-child {
+            border-bottom: none;
+        }
+        .word-number {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-right: 12px;
+        }
+        .word-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .word-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+        .phonetic {
+            font-size: 16px;
+            color: #666;
+            margin-left: 12px;
+            font-style: italic;
+        }
+        .definition {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555;
+            margin-left: 40px;
+        }
+        .footer {
+            background-color: #f9f9f9;
+            padding: 20px;
+            text-align: center;
+            border-radius: 0 0 10px 10px;
+            margin-top: 1px;
+        }
+        .progress {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .progress-bar {
+            background-color: #e0e0e0;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        .tip {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 今日单词学习</h1>
+            <div class="date">{{ date }}</div>
+        </div>
+        <div class="content">
+            {% for word in words %}
+            <div class="word-card">
+                <div class="word-header">
+                    <span class="word-number">{{ loop.index }}</span>
+                    <div>
+                        <span class="word-title">{{ word.word }}</span>
+                        <span class="phonetic">{{ word.phonetic }}</span>
+                    </div>
+                </div>
+                <div class="definition">{{ word.definition }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="footer">
+            <div class="progress">
+                学习进度: {{ progress.learned }}/{{ progress.total }} 
+                ({{ progress.progress_percent }}%)
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ progress.progress_percent }}%"></div>
+            </div>
+            <div class="tip">💡 坚持每天学习，积累成就未来</div>
+        </div>
+    </div>
+</body>
+</html>
