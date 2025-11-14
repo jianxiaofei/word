@@ -41,9 +41,33 @@
         .word-card {
             padding: 25px 30px;
             border-bottom: 1px solid #e5e5e5;
+            position: relative;
         }
         .word-card:last-child {
             border-bottom: none;
+        }
+        .word-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .audio-player {
+            margin: 15px 0 15px 40px;
+        }
+        .audio-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: transform 0.2s;
+        }
+        .audio-btn:hover {
+            transform: scale(1.05);
         }
         .word-number {
             display: inline-block;
@@ -58,22 +82,59 @@
             font-weight: bold;
             margin-right: 12px;
         }
+        .word-number.review {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .review-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
         .word-header {
             display: flex;
             align-items: center;
             margin-bottom: 12px;
+        }
+        .word-info {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .word-title {
             font-size: 24px;
             font-weight: 600;
             color: #333;
             margin: 0;
+            white-space: nowrap;
         }
         .phonetic {
             font-size: 16px;
             color: #666;
             margin-left: 12px;
             font-style: italic;
+            white-space: nowrap;
+        }
+        .audio-inline {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 12px;
+        }
+        .audio-inline audio {
+            height: 28px;
+            width: 180px;
+            border-radius: 14px;
+            outline: none;
+        }
+        .audio-inline audio::-webkit-media-controls-panel {
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 14px;
         }
         .definition {
             font-size: 16px;
@@ -98,10 +159,39 @@
         .example-zh {
             font-size: 13px;
             color: #666;
+            margin-top: 6px;
+            padding-left: 20px;
         }
         .example-icon {
             color: #667eea;
             margin-right: 6px;
+        }
+        .example details {
+            margin-top: 8px;
+        }
+        .example summary {
+            display: inline-block;
+            padding: 4px 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            user-select: none;
+            list-style: none;
+            transition: opacity 0.2s;
+        }
+        .example summary::-webkit-details-marker {
+            display: none;
+        }
+        .example summary::marker {
+            display: none;
+        }
+        .example summary:hover {
+            opacity: 0.9;
+        }
+        .example details[open] summary {
+            margin-bottom: 8px;
         }
         .footer {
             background-color: #f9f9f9;
@@ -143,18 +233,34 @@
         <div class="content">
             {% for word in words %}
             <div class="word-card">
+                {% if word.image_base64 %}
+                <img src="{{ word.image_base64 }}" alt="{{ word.word }}" class="word-image">
+                {% endif %}
                 <div class="word-header">
-                    <span class="word-number">{{ loop.index }}</span>
-                    <div>
+                    <span class="word-number{% if word.is_review %} review{% endif %}">{{ loop.index }}</span>
+                    <div class="word-info">
                         <span class="word-title">{{ word.word }}</span>
+                        {% if word.is_review %}
+                        <span class="review-badge">复习 {{word.mastery_level}}/6</span>
+                        {% endif %}
                         <span class="phonetic">{{ word.phonetic }}</span>
+                        {% if word.audio_base64 %}
+                        <span class="audio-inline">
+                            <audio controls preload="auto">
+                                <source src="{{ word.audio_base64 }}" type="audio/mpeg">
+                            </audio>
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="definition">{{ word.definition }}</div>
                 {% if word.example_en %}
                 <div class="example">
                     <div class="example-en"><span class="example-icon">📝</span>{{ word.example_en }}</div>
-                    <div class="example-zh">{{ word.example_zh }}</div>
+                    <details>
+                        <summary>显示翻译</summary>
+                        <div class="example-zh">{{ word.example_zh }}</div>
+                    </details>
                 </div>
                 {% endif %}
             </div>
@@ -164,11 +270,14 @@
             <div class="progress">
                 学习进度: {{ progress.learned }}/{{ progress.total }} 
                 ({{ progress.progress_percent }}%)
+                {% if progress.mastered > 0 %}
+                | 已掌握: {{ progress.mastered }} ({{ progress.mastery_percent }}%)
+                {% endif %}
             </div>
             <div class="progress-bar">
                 <div class="progress-fill" style="width: {{ progress.progress_percent }}%"></div>
             </div>
-            <div class="tip">💡 坚持每天学习，积累成就未来</div>
+            <div class="tip">💡 艾宾浩斯复习曲线助你高效记忆</div>
         </div>
     </div>
 </body>

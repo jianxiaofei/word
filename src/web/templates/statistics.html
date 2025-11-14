@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单词学习统计面板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card .label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        .stat-card .value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-card .unit {
+            font-size: 14px;
+            color: #999;
+            margin-left: 5px;
+        }
+        .chart-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .chart-card h2 {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .mastery-bar {
+            display: flex;
+            height: 40px;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .mastery-segment {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .mastery-segment:hover {
+            filter: brightness(1.2);
+        }
+        .level-0 { background: #e0e0e0; }
+        .level-1 { background: #ffb74d; }
+        .level-2 { background: #4fc3f7; }
+        .level-3 { background: #81c784; }
+        .level-4 { background: #9575cd; }
+        .level-5 { background: #f06292; }
+        .recent-words {
+            list-style: none;
+        }
+        .recent-words li {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .recent-words li:last-child {
+            border-bottom: none;
+        }
+        .word-name {
+            font-weight: 600;
+            color: #333;
+        }
+        .word-level {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: white;
+        }
+        .daily-chart {
+            display: flex;
+            align-items: flex-end;
+            height: 150px;
+            gap: 3px;
+        }
+        .daily-bar {
+            flex: 1;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            border-radius: 3px 3px 0 0;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .daily-bar:hover {
+            filter: brightness(1.2);
+        }
+        .daily-bar .tooltip {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: nowrap;
+            margin-bottom: 5px;
+        }
+        .daily-bar:hover .tooltip {
+            display: block;
+        }
+        .progress-ring {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto;
+        }
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 单词学习统计面板</h1>
+            <p>最后更新: {{ stats.last_update }}</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="label">📖 已学单词</div>
+                <div class="value">{{ stats.total_learned }}<span class="unit">/ {{ 4537 }}</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">🔄 复习次数</div>
+                <div class="value">{{ stats.total_reviews }}<span class="unit">次</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">✅ 掌握率</div>
+                <div class="value">{{ stats.mastery_rate }}<span class="unit">%</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">📈 学习进度</div>
+                <div class="value">{{ stats.progress }}<span class="unit">%</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">🔥 连续天数</div>
+                <div class="value">{{ stats.streak_days }}<span class="unit">天</span></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">📅 今日待复习</div>
+                <div class="value">{{ stats.today_review_count }}<span class="unit">个</span></div>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h2>📊 掌握度分布</h2>
+            <div class="mastery-bar">
+                {% set total = stats.total_learned %}
+                {% if total > 0 %}
+                    {% for level in range(6) %}
+                        {% set count = stats.mastery_distribution.get(level|string, 0) %}
+                        {% if count > 0 %}
+                        <div class="mastery-segment level-{{ level }}" 
+                             style="width: {{ (count / total * 100) }}%"
+                             title="Level {{ level }}: {{ count }}个单词">
+                            {% if count / total > 0.1 %}
+                            L{{ level }}: {{ count }}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <div class="mastery-segment level-0" style="width: 100%">暂无数据</div>
+                {% endif %}
+            </div>
+            <div style="font-size: 12px; color: #666; text-align: center;">
+                <span style="color: #e0e0e0;">●</span> L0:新学 
+                <span style="color: #ffb74d;">●</span> L1:1天 
+                <span style="color: #4fc3f7;">●</span> L2:2天 
+                <span style="color: #81c784;">●</span> L3:4天 
+                <span style="color: #9575cd;">●</span> L4:7天 
+                <span style="color: #f06292;">●</span> L5:完全掌握
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h2>📈 最近30天学习趋势</h2>
+            <div class="daily-chart">
+                {% for day in stats.daily_stats %}
+                <div class="daily-bar" style="height: {{ (day.count / 10 * 100) if day.count > 0 else 2 }}%">
+                    <div class="tooltip">{{ day.date }}<br>{{ day.count }}个单词</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h2>🌟 最近学习的单词</h2>
+            <ul class="recent-words">
+                {% for idx, word_data in stats.recent_words %}
+                <li>
+                    <span class="word-name">{{ word_data.word }}</span>
+                    <span class="word-level level-{{ word_data.mastery_level }}">
+                        Level {{ word_data.mastery_level }} - 复习{{ word_data.review_count }}次
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>💡 坚持就是胜利！继续加油！</p>
+        </div>
+    </div>
+</body>
+</html>

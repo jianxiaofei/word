@@ -5,18 +5,25 @@ __pycache__/
 *.egg
 *.egg-info/
 .Python
+build/
+dist/
+*.pyc
 
 # 配置文件（包含敏感信息）
 config.py
+src/config.py
 
 # 部署脚本（包含服务器IP）
 upload.sh
 remote_deploy.sh
+scripts/upload.sh
+scripts/remote_deploy.sh
 
 # 日志和数据文件
 *.log
-*.json
+logs/*.log
 word_history.json
+src/data/word_history.json
 word_system.log
 cron.log
 

@@ -5,6 +5,9 @@ import smtplib
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.image import MIMEImage
+from email.mime.audio import MIMEAudio
+from email.mime.base import MIMEBase
 from email.header import Header
 from datetime import datetime
 from typing import List, Dict
@@ -40,10 +43,10 @@ class EmailSender:
     
     def send_words_email(self, words: List[Dict], progress: Dict, template_file: str) -> bool:
         """
-        发送单词邮件
+        发送单词邮件（使用data URI内嵌图片和音频）
         
         Args:
-            words: 单词列表
+            words: 单词列表（包含image_base64和audio_base64）
             progress: 学习进度信息
             template_file: HTML模板文件路径
             
@@ -53,24 +56,22 @@ class EmailSender:
         try:
             # 创建邮件
             msg = MIMEMultipart('alternative')
-            msg['From'] = self.email_from  # QQ邮箱要求From必须与登录邮箱一致
+            msg['From'] = self.email_from
             msg['To'] = self.email_to
             msg['Subject'] = Header(
                 f"📚 每日单词 - {datetime.now().strftime('%Y年%m月%d日')}", 
                 'utf-8'
             )
             
-            # 渲染HTML
-            html_content = self.render_html(words, progress, template_file)
-            
-            # 添加纯文本版本（作为备选）
+            # 添加纯文本版本
             text_content = self._generate_text_version(words, progress)
+            part_text = MIMEText(text_content, 'plain', 'utf-8')
+            msg.attach(part_text)
             
-            part1 = MIMEText(text_content, 'plain', 'utf-8')
-            part2 = MIMEText(html_content, 'html', 'utf-8')
-            
-            msg.attach(part1)
-            msg.attach(part2)
+            # 渲染HTML（图片和音频已通过base64内嵌）
+            html_content = self.render_html(words, progress, template_file)
+            part_html = MIMEText(html_content, 'html', 'utf-8')
+            msg.attach(part_html)
             
             # 发送邮件
             if self.use_tls:
