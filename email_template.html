@@ -81,6 +81,28 @@
             color: #555;
             margin-left: 40px;
         }
+        .example {
+            margin-top: 12px;
+            margin-left: 40px;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-left: 3px solid #667eea;
+            border-radius: 4px;
+        }
+        .example-en {
+            font-size: 14px;
+            color: #333;
+            font-style: italic;
+            margin-bottom: 6px;
+        }
+        .example-zh {
+            font-size: 13px;
+            color: #666;
+        }
+        .example-icon {
+            color: #667eea;
+            margin-right: 6px;
+        }
         .footer {
             background-color: #f9f9f9;
             padding: 20px;
@@ -129,6 +151,12 @@
                     </div>
                 </div>
                 <div class="definition">{{ word.definition }}</div>
+                {% if word.example_en %}
+                <div class="example">
+                    <div class="example-en"><span class="example-icon">📝</span>{{ word.example_en }}</div>
+                    <div class="example-zh">{{ word.example_zh }}</div>
+                </div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>

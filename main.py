@@ -25,6 +25,7 @@ except ImportError:
 from word_parser import WordParser
 from word_selector import WordSelector
 from email_sender import EmailSender
+from example_fetcher import ExampleFetcher
 
 
 def setup_logging():
@@ -63,6 +64,19 @@ def main():
         
         logger.info(f"已选择单词: {[w['word'] for w in selected_words]}")
         logger.info(f"学习进度: {progress['learned']}/{progress['total']} ({progress['progress_percent']}%)")
+        
+        # 2.5. 获取例句
+        logger.info("正在获取例句...")
+        fetcher = ExampleFetcher()
+        for word_info in selected_words:
+            example = fetcher.fetch_example(word_info['word'])
+            if example:
+                word_info['example_en'] = example['example_en']
+                word_info['example_zh'] = example['example_zh']
+                logger.debug(f"例句: {word_info['word']} -> {example['example_en']}")
+            else:
+                word_info['example_en'] = None
+                word_info['example_zh'] = None
         
         # 3. 发送邮件
         logger.info("正在发送邮件...")
