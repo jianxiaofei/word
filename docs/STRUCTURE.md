@@ -30,9 +30,8 @@ word/
 │       └── email_template.html    # 邮件模板
 │
 ├── scripts/                       # 部署脚本
-│   ├── deploy.sh                  # 一键部署
-│   ├── upload.sh                  # 文件上传
-│   └── remote_deploy.sh           # 远程部署
+│   ├── deploy_docker.sh           # Docker 一键部署
+│   └── docker_scheduler.py        # Docker 定时任务调度
 │
 ├── logs/                          # 日志目录
 │   └── cron.log                   # 定时任务日志

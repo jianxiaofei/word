@@ -9,7 +9,8 @@ build/
 dist/
 *.pyc
 
-# 配置文件（包含敏感信息）
+# 环境变量和配置文件（包含敏感信息）
+.env
 config.py
 src/config.py
 
@@ -18,6 +19,7 @@ upload.sh
 remote_deploy.sh
 scripts/upload.sh
 scripts/remote_deploy.sh
+scripts/deploy_docker.sh
 
 # 日志和数据文件
 *.log
@@ -43,3 +45,7 @@ DEPLOYMENT.md
 # 临时文件
 *.tmp
 *.bak
+
+# 数据库文件
+*.db
+src/data/*.db

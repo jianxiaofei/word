@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """单词选择模块 - 艾宾浩斯复习版"""
 
-import json
 import random
 from typing import List, Dict, Set, Tuple
 from datetime import datetime, timedelta
+from .database import DatabaseManager
 
 
 class WordSelectorV2:
@@ -13,173 +13,139 @@ class WordSelectorV2:
     # 艾宾浩斯复习间隔（天数）
     REVIEW_INTERVALS = [1, 2, 4, 7, 15, 30]
     
-    def __init__(self, history_file: str):
-        self.history_file = history_file
-        self.words_data: Dict[str, Dict] = {}  # 单词学习数据
-        self.used_indices: Set[int] = set()
-        self.load_history()
+    def __init__(self, history_file: str = None):
+        # history_file 参数保留以兼容旧代码，但不再使用
+        self.db = DatabaseManager()
     
     def load_history(self):
-        """加载学习历史"""
-        try:
-            with open(self.history_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self.words_data = data.get('words', {})
-                self.used_indices = set(data.get('used_indices', []))
-        except FileNotFoundError:
-            self.words_data = {}
-            self.used_indices = set()
-        except json.JSONDecodeError:
-            self.words_data = {}
-            self.used_indices = set()
+        """加载学习历史 - 数据库版本不再需要手动加载"""
+        pass
     
     def save_history(self):
-        """保存学习历史"""
-        data = {
-            'words': self.words_data,
-            'used_indices': list(self.used_indices),
-            'last_update': datetime.now().isoformat()
-        }
-        with open(self.history_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        """保存学习历史 - 数据库版本实时保存，无需手动调用"""
+        pass
     
-    def get_due_review_words(self, all_words: List[Dict]) -> List[Dict]:
+    def get_due_review_words(self) -> List[Dict]:
         """
-        获取今天需要复习的单词
+        获取今天需要复习的单词 (V2: 直接从数据库获取)
+        """
+        today = datetime.now().date().isoformat()
+        return self.db.get_words_for_review(today)
+    
+    def select_new_words(self, count: int) -> List[Dict]:
+        """
+        选择新单词 (V2: 直接从数据库获取)
+        """
+        new_words = self.db.get_new_words(count)
         
-        Returns:
-            需要复习的单词列表（带索引和复习信息）
-        """
         today = datetime.now().date()
-        due_words = []
+        next_review = (today + timedelta(days=self.REVIEW_INTERVALS[0])).isoformat()
         
-        for idx_str, word_info in self.words_data.items():
-            # 检查是否到了复习时间
-            next_review = datetime.fromisoformat(word_info['next_review']).date()
-            
-            if next_review <= today:
-                idx = int(idx_str)
-                if idx < len(all_words):
-                    word = all_words[idx].copy()
-                    word['index'] = idx
-                    word['is_review'] = True
-                    word['review_count'] = word_info['review_count']
-                    word['mastery_level'] = word_info['mastery_level']
-                    due_words.append(word)
-        
-        return due_words
-    
-    def select_new_words(self, all_words: List[Dict], count: int) -> List[Dict]:
-        """
-        选择新单词
-        
-        Args:
-            all_words: 所有单词列表
-            count: 需要选择的单词数量
-            
-        Returns:
-            选中的新单词列表
-        """
-        total_words = len(all_words)
-        available_indices = [i for i in range(total_words) if i not in self.used_indices]
-        
-        # 如果可用单词不足，重置历史
-        if len(available_indices) < count:
-            self.used_indices = set()
-            self.words_data = {}
-            available_indices = list(range(total_words))
-        
-        # 随机选择
-        selected_indices = random.sample(available_indices, min(count, len(available_indices)))
-        selected_words = []
-        
-        today = datetime.now()
-        
-        for idx in selected_indices:
-            word = all_words[idx].copy()
-            word['index'] = idx
-            word['is_review'] = False
-            
-            # 记录新单词学习信息
-            self.words_data[str(idx)] = {
-                'word': word['word'],
-                'first_learned': today.date().isoformat(),
+        # 更新这些单词的状态为"学习中"
+        for word in new_words:
+            progress_data = {
+                'first_learned': today.isoformat(),
+                'last_review': today.isoformat(),
+                'next_review': next_review,
                 'review_count': 0,
-                'last_review': today.date().isoformat(),
-                'next_review': (today.date() + timedelta(days=self.REVIEW_INTERVALS[0])).isoformat(),
                 'mastery_level': 0
             }
+            self.db.update_word_progress(word['id'], progress_data)
             
-            self.used_indices.add(idx)
-            selected_words.append(word)
-        
-        return selected_words
+            # 合并进度数据到返回的单词对象中
+            word.update(progress_data)
+            word['is_review'] = False
+            
+        return new_words
     
-    def select_words(self, all_words: List[Dict], new_count: int = 3, review_count: int = 2) -> Tuple[List[Dict], List[Dict]]:
+    def select_words(self, new_count: int = 5, review_count: int = 5) -> Tuple[List[Dict], List[Dict]]:
         """
         选择单词：新单词 + 复习单词
         
         Args:
-            all_words: 所有单词列表
-            new_count: 新单词数量
-            review_count: 复习单词数量
-            
-        Returns:
-            (新单词列表, 复习单词列表)
+            new_count: 新单词数量，默认5个
+            review_count: 复习单词数量，默认5个（从所有到期单词中随机选择）
         """
-        # 1. 获取需要复习的单词
-        review_words = self.get_due_review_words(all_words)
+        # 1. 获取所有到期的复习单词
+        all_due_words = self.get_due_review_words()
         
-        # 随机选择复习单词（如果超过需要的数量）
-        if len(review_words) > review_count:
-            review_words = random.sample(review_words, review_count)
-        
-        # 2. 如果复习单词不足，增加新单词数量补充
-        actual_review = len(review_words)
-        actual_new = new_count + (review_count - actual_review)
-        
-        # 3. 选择新单词
-        new_words = self.select_new_words(all_words, actual_new)
+        # 2. 如果到期单词超过限制，随机选择 review_count 个
+        if len(all_due_words) > review_count:
+            review_words = random.sample(all_due_words, review_count)
+        else:
+            review_words = all_due_words
+            
+        for w in review_words:
+            w['is_review'] = True
+            
+        # 3. 获取新单词
+        new_words = self.select_new_words(new_count)
         
         return new_words, review_words
     
-    def mark_reviewed(self, word_index: int):
+    def mark_reviewed(self, word_id: int):
         """
-        标记单词已复习，更新下次复习时间
-        
-        Args:
-            word_index: 单词索引
+        标记单词已复习，更新下次复习时间 (V2)
         """
-        idx_str = str(word_index)
-        if idx_str not in self.words_data:
+        record = self.db.get_word_by_id(word_id)
+        if not record:
             return
-        
-        word_info = self.words_data[idx_str]
+            
         today = datetime.now().date()
         
         # 更新复习次数和掌握等级
-        word_info['review_count'] += 1
-        word_info['last_review'] = today.isoformat()
-        word_info['mastery_level'] = min(word_info['review_count'], len(self.REVIEW_INTERVALS) - 1)
+        new_review_count = record['review_count'] + 1
+        new_mastery_level = min(new_review_count, len(self.REVIEW_INTERVALS) - 1)
         
         # 计算下次复习时间
-        level = word_info['mastery_level']
-        if level < len(self.REVIEW_INTERVALS):
-            next_interval = self.REVIEW_INTERVALS[level]
-            word_info['next_review'] = (today + timedelta(days=next_interval)).isoformat()
+        if new_mastery_level < len(self.REVIEW_INTERVALS):
+            next_interval = self.REVIEW_INTERVALS[new_mastery_level]
+            next_review = (today + timedelta(days=next_interval)).isoformat()
         else:
             # 已完成所有复习，30天后再复习
-            word_info['next_review'] = (today + timedelta(days=30)).isoformat()
+            next_review = (today + timedelta(days=30)).isoformat()
+            
+        self.db.update_word_progress(word_id, {
+            'last_review': today.isoformat(),
+            'next_review': next_review,
+            'review_count': new_review_count,
+            'mastery_level': new_mastery_level
+        })
     
-    def get_progress(self, total_words: int) -> Dict:
+    def mark_unknown(self, word_id: int):
         """
-        获取学习进度统计
+        标记单词不认识，重置掌握等级 (V2)
+        """
+        record = self.db.get_word_by_id(word_id)
+        if not record:
+            return
+            
+        today = datetime.now().date()
         
-        Returns:
-            进度信息字典
+        # 重置掌握等级为0，复习次数不重置（或者也可以选择重置）
+        # 这里选择重置掌握等级，下次复习间隔变为1天
+        new_mastery_level = 0
+        
+        next_interval = self.REVIEW_INTERVALS[0] # 1天后
+        next_review = (today + timedelta(days=next_interval)).isoformat()
+            
+        self.db.update_word_progress(word_id, {
+            'last_review': today.isoformat(),
+            'next_review': next_review,
+            'review_count': record['review_count'] + 1, # 增加一次复习记录
+            'mastery_level': new_mastery_level
+        })
+    
+    def get_progress(self) -> Dict:
         """
-        learned = len(self.used_indices)
-        mastered = sum(1 for w in self.words_data.values() if w['mastery_level'] >= 5)
+        获取学习进度统计 (V2)
+        """
+        active_book = self.db.get_active_book()
+        total_words = active_book['total_words'] if active_book else 0
+        
+        all_records = self.db.get_all_records()
+        learned = len(all_records)
+        mastered = sum(1 for w in all_records if w['mastery_level'] >= 5)
         
         return {
             'total': total_words,

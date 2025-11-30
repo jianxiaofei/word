@@ -222,6 +222,34 @@
             color: #999;
             margin-top: 10px;
         }
+        .action-buttons {
+            margin-top: 15px;
+            margin-left: 40px;
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 15px;
+            text-decoration: none;
+            font-size: 13px;
+            text-align: center;
+            border: 1px solid transparent;
+        }
+        .btn-success {
+            background-color: #e6fffa;
+            color: #2c7a7b;
+            border-color: #b2f5ea;
+        }
+        .btn-danger {
+            background-color: #fff5f5;
+            color: #c53030;
+            border-color: #fed7d7;
+        }
+        .btn:hover {
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -261,6 +289,12 @@
                         <summary>显示翻译</summary>
                         <div class="example-zh">{{ word.example_zh }}</div>
                     </details>
+                </div>
+                {% endif %}
+                {% if server_url and word.is_review %}
+                <div class="action-buttons">
+                    <a href="{{ server_url }}/api/feedback?word_id={{ word.id }}&action=known" class="btn btn-success" target="_blank">认识 / 已复习</a>
+                    <a href="{{ server_url }}/api/feedback?word_id={{ word.id }}&action=unknown" class="btn btn-danger" target="_blank">不认识 / 重置</a>
                 </div>
                 {% endif %}
             </div>

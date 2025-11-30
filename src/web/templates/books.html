@@ -1,0 +1,125 @@
+{% extends "layout.html" %}
+
+{% block title %}词书管理 - 单词学习系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>📚 词书管理</h2>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+            <i class="bi bi-plus-lg"></i> 上传新词书
+        </button>
+    </div>
+
+    <div class="row">
+        {% for book in books %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 {% if book.is_active %}border-primary{% endif %}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h5 class="card-title">{{ book.name }}</h5>
+                        {% if book.is_active %}
+                        <span class="badge bg-primary">当前使用</span>
+                        {% endif %}
+                    </div>
+                    <p class="card-text text-muted">
+                        总单词数: {{ book.total_words }}<br>
+                        添加时间: {{ book.created_at }}
+                    </p>
+                    <div class="btn-group" role="group">
+                        <a href="/words?book_id={{ book.id }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-list-ul"></i> 管理单词
+                        </a>
+                        {% if not book.is_active %}
+                        <button class="btn btn-outline-primary btn-sm" onclick="activateBook({{ book.id }})">
+                            设为当前词书
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">上传新词书</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="uploadForm">
+                    <div class="mb-3">
+                        <label class="form-label">词书名称</label>
+                        <input type="text" class="form-control" name="name" required placeholder="例如: 托福核心词汇">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">词库文件 (TXT/CSV/Excel)</label>
+                        <input type="file" class="form-control" name="file" accept=".txt,.csv,.xlsx,.xls" required>
+                        <div class="form-text">
+                            支持格式：<br>
+                            • TXT: 每行 "单词 [音标] 释义"<br>
+                            • CSV/Excel: 列名为 word, phonetic, definition (或中文列名)
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="uploadBook()">上传</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function activateBook(bookId) {
+    if (!confirm('切换词书将改变每日学习内容，确定切换吗？')) return;
+    
+    try {
+        const response = await fetch('/api/books/activate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ book_id: bookId })
+        });
+        
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('切换失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('操作出错');
+    }
+}
+
+async function uploadBook() {
+    const form = document.getElementById('uploadForm');
+    const formData = new FormData(form);
+    
+    try {
+        const response = await fetch('/api/books/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            alert('上传成功');
+            location.reload();
+        } else {
+            alert('上传失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('上传出错');
+    }
+}
+</script>
+{% endblock %}

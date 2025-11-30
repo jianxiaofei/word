@@ -1,0 +1,285 @@
+{% extends "layout.html" %}
+
+{% block title %}系统设置 - 单词学习系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mb-4">⚙️ 系统设置</h2>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <form id="settingsForm">
+                        <h5 class="card-title mb-4">基本设置</h5>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">每日新词数量</label>
+                            <input type="number" class="form-control" name="daily_new_words" value="{{ settings.get('daily_new_words', 5) }}">
+                            <div class="form-text">每天学习的新单词数量，建议 5-20 个。</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">服务器地址 (用于邮件交互)</label>
+                            <input type="text" class="form-control" name="server_url" value="{{ settings.get('server_url', '') }}" placeholder="例如: http://1.2.3.4:5000">
+                            <div class="form-text">请填写部署服务器的公网 IP 或域名，用于生成邮件中的交互链接。</div>
+                        </div>
+
+                        <hr class="my-4">
+                        
+                        <h5 class="card-title mb-4">邮件通知设置</h5>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">SMTP 服务器</label>
+                            <input type="text" class="form-control" name="smtp_server" value="{{ settings.get('smtp_server', 'smtp.qq.com') }}">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">SMTP 端口</label>
+                            <input type="number" class="form-control" name="smtp_port" value="{{ settings.get('smtp_port', 587) }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">发件人邮箱</label>
+                            <input type="email" class="form-control" name="email_from" value="{{ settings.get('email_from', '') }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">SMTP 授权码/密码</label>
+                            <input type="password" class="form-control" name="smtp_password" value="{{ settings.get('smtp_password', '') }}" placeholder="如果不修改请留空">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">收件人邮箱</label>
+                            <div id="email-list-container">
+                                <!-- Dynamic inputs -->
+                            </div>
+                            <input type="hidden" id="initial-email-to" value="{{ settings.get('email_to', '') }}">
+                            <div class="form-text">点击 + 号添加更多收件人</div>
+                        </div>
+
+                        <h5 class="mb-3 mt-4">监控通知 (可选)</h5>
+                        <div class="mb-3">
+                            <label class="form-label">Webhook URL</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" name="webhook_url" id="webhook_url" value="{{ settings.get('webhook_url', '') }}" placeholder="支持钉钉、企业微信、飞书、Server酱">
+                                <button class="btn btn-outline-secondary" type="button" onclick="testWebhook()">测试通知</button>
+                            </div>
+                            <div class="form-text">当系统运行出错时，将通过此地址发送通知。</div>
+                        </div>
+
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">保存设置</button>
+                            <button type="button" class="btn btn-outline-secondary ms-2" onclick="testEmail()">发送测试邮件</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Email List Management
+const emailContainer = document.getElementById('email-list-container');
+const initialEmailStr = document.getElementById('initial-email-to').value;
+let emailList = initialEmailStr.split(/[,;]/).map(e => e.trim()).filter(e => e);
+if (emailList.length === 0) emailList = [''];
+
+function updateEmailListFromDOM() {
+    const inputs = document.querySelectorAll('.email-input');
+    emailList = Array.from(inputs).map(input => input.value);
+}
+
+function renderEmailList() {
+    emailContainer.innerHTML = '';
+    emailList.forEach((email, index) => {
+        const row = document.createElement('div');
+        row.className = 'input-group mb-2';
+        
+        const input = document.createElement('input');
+        input.type = 'email';
+        input.className = 'form-control email-input';
+        input.value = email;
+        input.placeholder = '输入邮箱地址';
+        
+        row.appendChild(input);
+
+        // Add/Remove buttons
+        if (index === emailList.length - 1) {
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'btn btn-outline-primary';
+            addBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
+            addBtn.onclick = () => {
+                updateEmailListFromDOM();
+                emailList.push('');
+                renderEmailList();
+            };
+            row.appendChild(addBtn);
+        } else {
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'btn btn-outline-danger';
+            removeBtn.innerHTML = '<i class="bi bi-dash-lg"></i>';
+            removeBtn.onclick = () => {
+                updateEmailListFromDOM();
+                emailList.splice(index, 1);
+                if (emailList.length === 0) emailList = [''];
+                renderEmailList();
+            };
+            row.appendChild(removeBtn);
+        }
+        
+        emailContainer.appendChild(row);
+    });
+}
+
+// Initialize
+renderEmailList();
+
+document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // 前端校验
+    const dailyNewWords = this.querySelector('[name="daily_new_words"]').value;
+    if (dailyNewWords < 1 || dailyNewWords > 100) {
+        alert('每日新词数量应在 1 到 100 之间');
+        return;
+    }
+
+    const serverUrl = this.querySelector('[name="server_url"]').value.trim();
+    if (serverUrl && !serverUrl.startsWith('http')) {
+        alert('服务器地址必须以 http:// 或 https:// 开头');
+        return;
+    }
+
+    const smtpServer = this.querySelector('[name="smtp_server"]').value.trim();
+    if (!smtpServer) {
+        alert('请输入 SMTP 服务器地址');
+        return;
+    }
+
+    const smtpPort = this.querySelector('[name="smtp_port"]').value;
+    if (!smtpPort || isNaN(smtpPort)) {
+        alert('请输入有效的 SMTP 端口号');
+        return;
+    }
+
+    const emailFrom = this.querySelector('[name="email_from"]').value.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailFrom || !emailRegex.test(emailFrom)) {
+        alert('请输入有效的发件人邮箱地址');
+        return;
+    }
+
+    // Collect emails before creating FormData
+    const currentEmails = Array.from(document.querySelectorAll('.email-input'))
+        .map(input => input.value.trim())
+        .filter(v => v);
+    
+    if (currentEmails.length === 0) {
+        alert('请至少填写一个收件人邮箱');
+        return;
+    }
+
+    for (const email of currentEmails) {
+        if (!emailRegex.test(email)) {
+            alert(`收件人邮箱格式不正确: ${email}`);
+            return;
+        }
+    }
+    
+    const formData = new FormData(this);
+    const data = Object.fromEntries(formData.entries());
+    
+    // Override email_to with joined string
+    data.email_to = currentEmails.join(',');
+    
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            alert('设置已保存');
+        } else {
+            alert('保存失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('保存出错');
+    }
+});
+
+async function testEmail() {
+    const btn = document.querySelector('button[onclick="testEmail()"]');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 发送中...';
+
+    try {
+        const response = await fetch('/api/test-email', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('测试邮件发送成功！请检查收件箱。');
+        } else {
+            alert('发送失败：' + (data.message || '未知错误'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('发送请求失败');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+async function testWebhook() {
+    const btn = document.querySelector('button[onclick="testWebhook()"]');
+    const input = document.getElementById('webhook_url');
+    const url = input.value.trim();
+    
+    if (!url) {
+        alert('请先输入 Webhook URL');
+        return;
+    }
+
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+    try {
+        const response = await fetch('/api/test-webhook', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ webhook_url: url })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('测试通知发送成功！');
+        } else {
+            alert('发送失败：' + (data.message || '未知错误'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('发送请求失败');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+</script>
+{% endblock %}

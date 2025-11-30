@@ -28,7 +28,7 @@ class EmailSender:
         self.password = password
         self.logger = logging.getLogger(__name__)
     
-    def render_html(self, words: List[Dict], progress: Dict, template_file: str) -> str:
+    def render_html(self, words: List[Dict], progress: Dict, template_file: str, server_url: str = "") -> str:
         """渲染HTML邮件模板"""
         with open(template_file, 'r', encoding='utf-8') as f:
             template_content = f.read()
@@ -37,11 +37,12 @@ class EmailSender:
         html = template.render(
             words=words,
             progress=progress,
-            date=datetime.now().strftime('%Y年%m月%d日')
+            date=datetime.now().strftime('%Y年%m月%d日'),
+            server_url=server_url
         )
         return html
     
-    def send_words_email(self, words: List[Dict], progress: Dict, template_file: str) -> bool:
+    def send_words_email(self, words: List[Dict], progress: Dict, template_file: str, server_url: str = "") -> bool:
         """
         发送单词邮件（使用data URI内嵌图片和音频）
         
@@ -49,15 +50,31 @@ class EmailSender:
             words: 单词列表（包含image_base64和audio_base64）
             progress: 学习进度信息
             template_file: HTML模板文件路径
+            server_url: 服务器地址，用于生成交互链接
             
         Returns:
             是否发送成功
         """
         try:
+            # 处理多收件人 (支持逗号或分号分隔)
+            if ',' in self.email_to:
+                to_list = [e.strip() for e in self.email_to.split(',')]
+            elif ';' in self.email_to:
+                to_list = [e.strip() for e in self.email_to.split(';')]
+            else:
+                to_list = [self.email_to.strip()]
+            
+            # 过滤空地址
+            to_list = [e for e in to_list if e]
+            
+            if not to_list:
+                self.logger.error("收件人列表为空")
+                return False
+
             # 创建邮件
             msg = MIMEMultipart('alternative')
             msg['From'] = self.email_from
-            msg['To'] = self.email_to
+            msg['To'] = ', '.join(to_list)
             msg['Subject'] = Header(
                 f"📚 每日单词 - {datetime.now().strftime('%Y年%m月%d日')}", 
                 'utf-8'
@@ -69,7 +86,7 @@ class EmailSender:
             msg.attach(part_text)
             
             # 渲染HTML（图片和音频已通过base64内嵌）
-            html_content = self.render_html(words, progress, template_file)
+            html_content = self.render_html(words, progress, template_file, server_url)
             part_html = MIMEText(html_content, 'html', 'utf-8')
             msg.attach(part_html)
             
@@ -89,7 +106,7 @@ class EmailSender:
                         server.login(self.username, self.password)
                     server.send_message(msg)
             
-            self.logger.info(f"邮件发送成功: {self.email_to}")
+            self.logger.info(f"邮件发送成功: {to_list}")
             return True
             
         except Exception as e:

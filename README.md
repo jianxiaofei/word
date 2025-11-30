@@ -3,19 +3,23 @@
 > 基于艾宾浩斯记忆曲线的英语单词学习系统，每天通过精美的HTML邮件帮助你高效记忆单词
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## ✨ 功能特性
 
-- 📧 **智能邮件推送** - 每工作日早7:30自动发送（可配置）
+- 📧 **智能邮件推送** - 每天早7:30自动发送（可配置时间）
 - 🧠 **艾宾浩斯复习** - 科学的间隔重复算法（1/2/4/7/15/30天）
 - 🎨 **精美HTML模板** - 渐变卡片设计，图文音频结合
 - 🖼️ **图片记忆** - 自动获取单词相关图片（必应/Pixabay）
 - 🔊 **音频发音** - 内嵌有道词典真人发音
 - 📝 **双语例句** - 原文+翻译折叠显示，主动学习
-- 📊 **Web统计面板** - 可视化学习进度和掌握度分布
+- 📊 **Web管理面板** - 可视化学习进度和掌握度分布
 - 🔄 **自动复习提醒** - 根据记忆曲线智能安排复习
 - 📈 **掌握度分级** - L0-L5六级掌握度评估
+- 📚 **多词书支持** - 支持上传自定义词书（TXT/CSV/Excel）
+- ⚙️ **Web配置管理** - 可通过Web界面管理所有设置
+- 🐳 **Docker部署** - 一键Docker Compose部署
 
 ## 📸 效果预览
 
@@ -26,12 +30,14 @@
 - 双语例句（可折叠）
 - 学习进度条
 
-### Web统计面板
-- 已学单词数、复习次数、掌握率
-- 连续学习天数统计
-- 掌握度分布彩色条形图
-- 最近30天学习趋势图
-- 最近学习单词列表
+### Web管理面板
+- 📊 统计面板：已学单词数、复习次数、掌握率
+- 📈 连续学习天数统计
+- 🎨 掌握度分布彩色条形图
+- 📉 最近30天学习趋势图
+- 📚 词书管理：上传/切换词书
+- 📝 单词管理：查看所有单词学习状态
+- ⚙️ 系统设置：配置邮箱、每日单词数等
 
 ## 🚀 快速开始
 
@@ -87,86 +93,113 @@ WORDS_PER_EMAIL = 5                  # 3个新词 + 2个复习词
 # 测试邮件发送
 python3 src/main.py
 
-# 启动统计服务（访问 http://localhost:8080）
-python3 src/web/app.py
+# 启动Web管理面板（访问 http://localhost:5000）
+python3 -m flask --app src/web/app run
 ```
 
-### 5. 部署到服务器（可选）
+### 5. 部署到服务器（推荐 Docker）
 
-#### 方式1: 使用部署脚本
+#### Docker 部署
+
+1. 确保已安装 Docker 和 Docker Compose
+2. 配置 `src/config.py`（参考步骤3）
+3. 启动服务：
 
 ```bash
-# 1. 复制部署脚本模板
-cp scripts/upload.example.sh scripts/upload.sh
-cp scripts/remote_deploy.example.sh scripts/remote_deploy.sh
+# 使用一键部署脚本（推荐）
+./scripts/deploy_docker.sh
 
-# 2. 编辑脚本，填入服务器信息
-nano scripts/upload.sh
-nano scripts/remote_deploy.sh
-
-# 3. 上传并部署
-bash scripts/deploy.sh
+# 或者手动启动
+docker-compose up -d
 ```
 
-#### 方式2: 手动部署
+这将启动两个容器：
+- `word-web`: Web管理面板，访问 http://localhost:80
+- `word-scheduler`: 定时任务调度器，每天 07:30 自动发送邮件
+
+#### 传统 Crontab 部署
 
 ```bash
-# 1. 上传文件到服务器
-scp -r src/ requirements.txt root@your-server:/root/word/
+# 使用一键部署脚本（推荐）
+./scripts/deploy_docker.sh
 
-# 2. SSH登录服务器
-ssh root@your-server
-
-# 3. 安装依赖
-cd /root/word
-pip3 install -r requirements.txt
-
-# 4. 配置定时任务
-crontab -e
-# 添加以下行（每工作日7:30执行）
-30 7 * * 1-5 cd /root/word && python3 src/main.py >> logs/cron.log 2>&1
+# 或者手动启动
+docker-compose up -d
 ```
+
+这将启动两个容器：
+- `word-web`: Web管理面板，访问 http://localhost:80
+- `word-scheduler`: 定时任务调度器，每天 07:30 自动发送邮件
+
+#### 传统 Crontab 部署
+
+```bash
+# 每天7:30执行
+30 7 * * * cd /root/word && python3 src/main.py
+```
+
+## 🌐 Web管理面板
+
+启动后访问 `http://localhost:5000`（本地）或 `http://your-server:80`（Docker）
+
+### 页面功能
+
+| 页面 | 路径 | 功能说明 |
+|------|------|---------|
+| 📊 统计面板 | `/` | 学习进度、掌握度分布、趋势图 |
+| 📚 词书管理 | `/books` | 上传/切换/管理词书 |
+| 📝 单词管理 | `/words` | 查看所有单词学习状态 |
+| ⚙️ 系统设置 | `/settings` | 配置邮箱、每日单词数等 |
 
 ## 📁 项目结构
 
 ```
 word/
 ├── src/                              # 源代码
-│   └── word_email/                   # 主包
-│       ├── __init__.py               # 包初始化
-│       ├── config.py                 # 配置文件（需自行创建）
-│       ├── main.py                   # 主程序入口
-│       │
-│       ├── core/                     # 核心功能模块
-│       │   ├── word_parser.py        # 词库解析
-│       │   ├── word_selector.py      # 艾宾浩斯选择器
-│       │   ├── example_fetcher.py    # 例句/图片/音频获取
-│       │   └── email_sender.py       # 邮件发送
-│       │
-│       ├── web/                      # Web统计服务
-│       │   ├── app.py                # Flask应用
-│       │   └── templates/            # HTML模板
-│       │       └── statistics.html   # 统计面板
-│       │
-│       └── data/                     # 数据文件
-│           ├── CET4_edited.txt       # 词库（4537个单词）
-│           ├── word_history.json     # 学习记录（自动生成）
-│           └── email_template.html   # 邮件模板
+│   ├── config.example.py             # 配置文件模板
+│   ├── config.py                     # 配置文件（需自行创建）
+│   ├── main.py                       # 主程序入口
+│   │
+│   ├── core/                         # 核心功能模块
+│   │   ├── database.py               # SQLite数据库管理
+│   │   ├── word_parser.py            # 词库解析（TXT/CSV/Excel）
+│   │   ├── word_selector.py          # 艾宾浩斯选择器
+│   │   ├── example_fetcher.py        # 例句/图片/音频获取
+│   │   ├── email_sender.py           # 邮件发送
+│   │   └── notifier.py               # 通知推送
+│   │
+│   ├── web/                          # Web管理服务
+│   │   ├── app.py                    # Flask应用
+│   │   └── templates/                # HTML模板
+│   │       ├── layout.html           # 布局模板
+│   │       ├── statistics.html       # 统计面板
+│   │       ├── books.html            # 词书管理
+│   │       ├── words.html            # 单词管理
+│   │       └── settings.html         # 系统设置
+│   │
+│   └── data/                         # 数据文件
+│       ├── CET4_edited.txt           # 默认词库（CET4）
+│       ├── word.db                   # SQLite数据库（自动生成）
+│       ├── word_history.json         # 旧版学习记录（兼容）
+│       └── email_template.html       # 邮件模板
 │
 ├── scripts/                          # 部署脚本
-│   ├── deploy.sh                     # 一键部署
-│   ├── upload.sh                     # 文件上传
-│   └── remote_deploy.sh              # 远程部署
+│   ├── deploy_docker.sh              # Docker一键部署
+│   ├── docker_scheduler.py           # Docker定时调度器
+│   ├── migrate_to_sqlite.py          # 数据迁移脚本
+│   └── migrate_v2.py                 # V2版本迁移
 │
-├── tests/                            # 测试用例（待完善）
+├── tests/                            # 测试用例
 ├── logs/                             # 日志目录
 ├── docs/                             # 文档
-│   └── STRUCTURE.md                  # 项目结构详解
+│   ├── STRUCTURE.md                  # 项目结构详解
+│   ├── OPTIMIZATION_PLAN.md          # 优化计划
+│   └── ROADMAP.md                    # 开发路线图
 │
+├── docker-compose.yml                # Docker编排配置
+├── Dockerfile                        # Docker镜像构建
 ├── requirements.txt                  # Python依赖
-├── setup.py                          # 安装配置
-├── README.md                         # 项目说明（本文件）
-└── .gitignore                        # Git忽略配置
+└── README.md                         # 项目说明（本文件）
 ```
 
 ## 🧠 艾宾浩斯记忆曲线
@@ -183,37 +216,54 @@ word/
 | L5 | 15天后 | 第5次复习 |
 | L6 | 30天后 | 完全掌握 |
 
-**每日邮件组成**：3个新词 + 2个到期复习词
+**每日邮件组成**：N个新词 + M个到期复习词（可在设置中配置）
 
-## 📊 数据结构
+## 💾 数据存储
 
-### word_history.json
+系统使用 SQLite 数据库存储所有数据，数据文件位于 `src/data/word.db`。
+
+### 数据库表结构
+
+| 表名 | 说明 |
+|------|------|
+| `books` | 词书管理 |
+| `words` | 单词数据及学习记录 |
+| `settings` | 系统设置 |
+| `learning_records` | 旧版学习记录（兼容） |
+
+### 单词记录字段
+
 ```json
 {
-  "words": {
-    "365": {
-      "word": "abandon",
-      "first_learned": "2025-11-14",
-      "review_count": 2,
-      "last_review": "2025-11-16",
-      "next_review": "2025-11-20",
-      "mastery_level": 2
-    }
-  },
-  "used_indices": [365, 866, ...],
-  "last_update": "2025-11-14T07:30:02.040000"
+  "id": 1,
+  "book_id": 1,
+  "word": "abandon",
+  "phonetic": "/əˈbændən/",
+  "definition": "v. 放弃，遗弃",
+  "status": 1,
+  "first_learned": "2025-11-14",
+  "last_review": "2025-11-16",
+  "next_review": "2025-11-20",
+  "review_count": 2,
+  "mastery_level": 2
 }
 ```
 
 ## 🔌 API接口
 
-Web统计服务提供以下接口：
+Web服务提供以下API接口：
 
-- `GET /` - Web统计面板（HTML页面）
-- `GET /api/stats` - 统计数据（JSON格式）
-- `GET /api/words` - 所有单词详情（JSON格式）
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/stats` | 获取统计数据 |
+| GET | `/api/words` | 获取所有单词 |
+| POST | `/api/settings` | 更新设置 |
+| POST | `/api/books/upload` | 上传新词书 |
+| POST | `/api/books/activate` | 切换当前词书 |
+| POST | `/api/send-email` | 手动发送邮件 |
+| POST | `/api/test-email` | 发送测试邮件 |
 
-示例：
+### 示例：获取统计数据
 ```bash
 # 获取统计数据
 curl http://localhost:8080/api/stats
@@ -233,8 +283,11 @@ curl http://localhost:8080/api/stats
 
 - **Python 3.9+** - 主语言
 - **Flask** - Web框架
+- **SQLite** - 数据库存储
 - **Jinja2** - 模板引擎
 - **Requests** - HTTP客户端
+- **Pandas** - 数据处理（词书解析）
+- **Docker** - 容器化部署
 - **SMTP** - 邮件发送协议
 
 ## 📝 配置说明
@@ -253,8 +306,8 @@ curl http://localhost:8080/api/stats
 ### Crontab配置示例
 
 ```bash
-# 每工作日7:30执行
-30 7 * * 1-5 cd /root/word && python3 src/main.py
+# 每天7:30执行
+30 7 * * * cd /root/word && python3 src/main.py
 
 # 每天8:00执行
 0 8 * * * cd /root/word && python3 src/main.py
@@ -262,6 +315,8 @@ curl http://localhost:8080/api/stats
 # 每天早晚各一次
 30 7,19 * * * cd /root/word && python3 src/main.py
 ```
+
+> 💡 **推荐使用 Docker 部署**：无需配置 Crontab，自动处理定时任务。
 
 ## 🐛 常见问题
 
@@ -340,10 +395,12 @@ cd /root/word && python3 src/main.py
 
 ## 📊 项目统计
 
-- 📚 词库容量：4537个单词（CET4）
+- 📚 默认词库：CET4词汇
 - 🎯 复习间隔：6个级别（艾宾浩斯曲线）
 - 📧 邮件模板：响应式HTML5设计
 - 📈 统计维度：10+项学习数据
+- 🐳 部署方式：Docker / 传统部署
+- 💾 数据存储：SQLite数据库
 
 ---
 

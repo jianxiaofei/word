@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Web 统计面板服务
+  web:
+    build: .
+    container_name: word-web
+    restart: unless-stopped
+    ports:
+      - "80:5000"
+    volumes:
+      # 挂载整个 src 目录，以便代码修改即时生效
+      - ./src:/app/src
+      # 挂载日志目录
+      - ./logs:/app/logs
+    environment:
+      - FLASK_APP=src/web/app.py
+      - FLASK_DEBUG=0
+      - TZ=Asia/Shanghai
+    command: python -m flask run --host=0.0.0.0
+
+  # 定时任务调度服务
+  scheduler:
+    build: .
+    container_name: word-scheduler
+    restart: unless-stopped
+    depends_on:
+      - web
+    volumes:
+      - ./src:/app/src
+      - ./logs:/app/logs
+    environment:
+      # 每天发送邮件的时间
+      - SCHEDULE_TIME=07:30
+      - TZ=Asia/Shanghai
+    command: python scripts/docker_scheduler.py

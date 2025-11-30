@@ -1,27 +1,28 @@
 # -*- coding: utf-8 -*-
 """单词邮件系统 - 主程序入口"""
 
-import os
 import sys
 import logging
+from pathlib import Path
 from datetime import datetime
 
 # 添加项目根目录到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.word_parser import WordParser
 from core.word_selector import WordSelectorV2
 from core.example_fetcher import ExampleFetcher
 from core.email_sender import EmailSender
+from core.database import DatabaseManager
+from core.notifier import Notifier
 import config
 
 
 def setup_logging():
     """配置日志"""
-    log_dir = os.path.join(os.path.dirname(__file__), '../../logs')
-    os.makedirs(log_dir, exist_ok=True)
+    log_dir = Path(__file__).resolve().parent.parent.parent / 'logs'
+    log_dir.mkdir(parents=True, exist_ok=True)
     
-    log_file = os.path.join(log_dir, 'word_system.log')
+    log_file = log_dir / 'word_system.log'
     
     logging.basicConfig(
         level=logging.INFO,
@@ -43,29 +44,43 @@ def main():
         logger.info("单词邮件系统启动")
         logger.info(f"时间: {datetime.now()}")
         
-        # 1. 解析词库
-        logger.info("正在解析词库...")
-        word_file = os.path.join(os.path.dirname(__file__), 'data/CET4_edited.txt')
-        parser = WordParser(word_file)
-        all_words = parser.parse()
-        logger.info(f"词库加载完成，共 {len(all_words)} 个单词")
+        # 初始化数据库管理器
+        db = DatabaseManager()
+
+        # 防止同一天发送多次邮件
+        if db.has_sent_email_today():
+            logger.info("今天的单词邮件已发送过，本次不再重复发送。")
+            return
         
-        # 2. 选择单词（新词+复习词）
+        # 获取系统设置
+        daily_new_words = int(db.get_setting('daily_new_words') or 5)
+        smtp_server = db.get_setting('smtp_server') or config.SMTP_SERVER
+        smtp_port = int(db.get_setting('smtp_port') or config.SMTP_PORT)
+        email_from = db.get_setting('email_from') or config.EMAIL_FROM
+        email_to = db.get_setting('email_to') or config.EMAIL_TO
+        smtp_password = db.get_setting('smtp_password') or config.SMTP_PASSWORD
+        server_url = db.get_setting('server_url') or ''
+        daily_review_words = int(db.get_setting('daily_review_words') or 5)
+        
+        # 1. 选择单词（新词+复习词）
         logger.info(f"正在选择单词...")
-        history_file = os.path.join(os.path.dirname(__file__), 'data/word_history.json')
-        selector = WordSelectorV2(history_file)
-        new_words, review_words = selector.select_words(all_words, new_count=3, review_count=2)
-        progress = selector.get_progress(len(all_words))
+        selector = WordSelectorV2() # V2不再需要文件路径
+        new_words, review_words = selector.select_words(new_count=daily_new_words, review_count=daily_review_words)
+        progress = selector.get_progress()
         
         # 合并新词和复习词
         selected_words = new_words + review_words
         
+        if not selected_words:
+            logger.info("今天没有需要学习或复习的单词。")
+            return
+
         logger.info(f"已选择单词: 新词{len(new_words)}个 + 复习{len(review_words)}个")
         logger.info(f"新词: {[w['word'] for w in new_words]}")
         logger.info(f"复习: {[w['word'] for w in review_words]}")
         logger.info(f"学习进度: {progress['learned']}/{progress['total']} ({progress['progress_percent']}%)")
         
-        # 3. 获取例句、图片、音频
+        # 2. 获取例句、图片、音频
         logger.info("正在获取例句、图片和音频...")
         fetcher = ExampleFetcher()
         for word_info in selected_words:
@@ -76,25 +91,35 @@ def main():
             word_info['audio_base64'] = data['audio_base64']
             logger.debug(f"数据: {word_info['word']} -> 例句:{bool(data['example_en'])} 图片:{bool(data['image_base64'])} 音频:{bool(data['audio_base64'])}")
         
-        # 4. 发送邮件
+        # 3. 发送邮件
         logger.info("正在发送邮件...")
-        template_file = os.path.join(os.path.dirname(__file__), 'data/email_template.html')
+        template_file = str(Path(__file__).resolve().parent / 'data' / 'email_template.html')
         sender = EmailSender(
-            config.SMTP_SERVER, config.SMTP_PORT, config.EMAIL_FROM, config.EMAIL_TO,
-            use_tls=config.SMTP_USE_TLS,
-            username=config.SMTP_USERNAME,
-            password=config.SMTP_PASSWORD
+            smtp_server, smtp_port, email_from, email_to,
+            use_tls=config.SMTP_USE_TLS, # TLS设置暂时还用config的，或者也可以加到DB
+            username=email_from, # 通常用户名就是发件人邮箱
+            password=smtp_password
         )
         
-        success = sender.send_words_email(selected_words, progress, template_file)
+        success = sender.send_words_email(selected_words, progress, template_file, server_url)
         
         if success:
-            logger.info(f"✓ 邮件发送成功: {config.EMAIL_TO}")
-            # 5. 保存学习记录
-            selector.save_history()
-            logger.info("✓ 学习记录已保存")
+            logger.info(f"✓ 邮件发送成功: {email_to}")
+            # 记录今日已发送
+            db.mark_email_sent_today()
+            # 注意: 不再自动标记复习完成，由用户通过邮件中的按钮交互反馈
+            # 新学的单词已在 select_new_words 中更新状态
+            # 复习单词需要用户点击"认识"按钮后才会更新 next_review
+            logger.info("✓ 邮件已发送，等待用户反馈")
         else:
             logger.error(f"✗ 邮件发送失败")
+            
+            # 发送失败通知
+            webhook_url = db.get_setting('webhook_url', '')
+            if webhook_url:
+                notifier = Notifier(webhook_url)
+                notifier.send_message("邮件发送失败", "邮件发送函数返回失败，请检查邮件配置或网络连接。")
+                
             sys.exit(1)
         
         logger.info("单词邮件系统运行完成")
@@ -102,6 +127,20 @@ def main():
         
     except Exception as e:
         logger.error(f"程序运行出错: {str(e)}", exc_info=True)
+        
+        # 发送错误通知
+        try:
+            # 尝试获取 Webhook URL (如果数据库连接正常)
+            webhook_url = None
+            if 'db' in locals():
+                webhook_url = db.get_setting('webhook_url', '')
+            
+            if webhook_url:
+                notifier = Notifier(webhook_url)
+                notifier.send_message("运行出错", f"错误信息：{str(e)}\n请检查服务器日志。")
+        except Exception as notify_error:
+            logger.error(f"发送错误通知失败: {notify_error}")
+
         sys.exit(1)
 
 
