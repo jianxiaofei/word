@@ -21,8 +21,8 @@
 
                         <div class="mb-3">
                             <label class="form-label">服务器地址 (用于邮件交互)</label>
-                            <input type="text" class="form-control" name="server_url" value="{{ settings.get('server_url', '') }}" placeholder="例如: http://1.2.3.4:5000">
-                            <div class="form-text">请填写部署服务器的公网 IP 或域名，用于生成邮件中的交互链接。</div>
+                            <input type="text" class="form-control" name="server_url" value="{{ settings.get('server_url', '') }}" placeholder="例如: http://203.0.113.10/word-web">
+                            <div class="form-text">用于生成邮件中的交互链接。若 Web 面板挂在子路径下，请包含前缀（例如 /word-web）。</div>
                         </div>
 
                         <hr class="my-4">
@@ -82,6 +82,10 @@
 
 {% block scripts %}
 <script>
+const API_UPDATE_SETTINGS_URL = "{{ url_for('update_settings') }}";
+const API_TEST_EMAIL_URL = "{{ url_for('send_test_email') }}";
+const API_TEST_WEBHOOK_URL = "{{ url_for('send_test_webhook') }}";
+
 // Email List Management
 const emailContainer = document.getElementById('email-list-container');
 const initialEmailStr = document.getElementById('initial-email-to').value;
@@ -199,7 +203,7 @@ document.getElementById('settingsForm').addEventListener('submit', async functio
     data.email_to = currentEmails.join(',');
     
     try {
-        const response = await fetch('/api/settings', {
+        const response = await fetch(API_UPDATE_SETTINGS_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -225,7 +229,7 @@ async function testEmail() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 发送中...';
 
     try {
-        const response = await fetch('/api/test-email', {
+        const response = await fetch(API_TEST_EMAIL_URL, {
             method: 'POST'
         });
         const data = await response.json();
@@ -259,7 +263,7 @@ async function testWebhook() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
 
     try {
-        const response = await fetch('/api/test-webhook', {
+        const response = await fetch(API_TEST_WEBHOOK_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

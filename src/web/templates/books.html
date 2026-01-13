@@ -27,7 +27,7 @@
                         添加时间: {{ book.created_at }}
                     </p>
                     <div class="btn-group" role="group">
-                        <a href="/words?book_id={{ book.id }}" class="btn btn-sm btn-outline-secondary">
+                        <a href="{{ url_for('words_page', book_id=book.id) }}" class="btn btn-sm btn-outline-secondary">
                             <i class="bi bi-list-ul"></i> 管理单词
                         </a>
                         {% if not book.is_active %}
@@ -79,11 +79,14 @@
 
 {% block scripts %}
 <script>
+const API_ACTIVATE_BOOK_URL = "{{ url_for('activate_book') }}";
+const API_UPLOAD_BOOK_URL = "{{ url_for('upload_book') }}";
+
 async function activateBook(bookId) {
     if (!confirm('切换词书将改变每日学习内容，确定切换吗？')) return;
     
     try {
-        const response = await fetch('/api/books/activate', {
+        const response = await fetch(API_ACTIVATE_BOOK_URL, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ book_id: bookId })
@@ -105,7 +108,7 @@ async function uploadBook() {
     const formData = new FormData(form);
     
     try {
-        const response = await fetch('/api/books/upload', {
+        const response = await fetch(API_UPLOAD_BOOK_URL, {
             method: 'POST',
             body: formData
         });

@@ -113,8 +113,8 @@ python3 -m flask --app src/web/app run
 docker-compose up -d
 ```
 
-这将启动两个容器：
-- `word-web`: Web管理面板，访问 http://localhost:80
+这将启动三个容器：
+- `word-web`: Web管理面板（由 Nginx 统一入口反代），访问 http://localhost/word-web/
 - `word-scheduler`: 定时任务调度器，每天 07:30 自动发送邮件
 
 #### 传统 Crontab 部署
@@ -127,8 +127,8 @@ docker-compose up -d
 docker-compose up -d
 ```
 
-这将启动两个容器：
-- `word-web`: Web管理面板，访问 http://localhost:80
+这将启动三个容器：
+- `word-web`: Web管理面板（由 Nginx 统一入口反代），访问 http://localhost/word-web/
 - `word-scheduler`: 定时任务调度器，每天 07:30 自动发送邮件
 
 #### 传统 Crontab 部署
@@ -140,13 +140,25 @@ docker-compose up -d
 
 ## 🌐 Web管理面板
 
-启动后访问 `http://localhost:5000`（本地）或 `http://your-server:80`（Docker）
+启动后访问 `http://localhost:5000`（本地）或 `http://your-server/word-web/`（Docker）
+
+### 登录保护（推荐开启）
+
+Web 管理面板默认需要登录（会跳到 `/login`）。在服务器部署目录（默认 `/root/word`）创建/编辑 `.env`：
+
+```dotenv
+WEB_ADMIN_USER=admin
+WEB_ADMIN_PASSWORD=your_strong_password
+WEB_SECRET_KEY=your_long_random_string
+```
+
+修改后重启：`docker compose up -d --build`。
 
 ### 页面功能
 
 | 页面 | 路径 | 功能说明 |
 |------|------|---------|
-| 📊 统计面板 | `/` | 学习进度、掌握度分布、趋势图 |
+| 📊 统计面板 | `/` | 学习进度、掌握度分布、趋势图（Docker 部署时外部访问为 `/word-web/`） |
 | 📚 词书管理 | `/books` | 上传/切换/管理词书 |
 | 📝 单词管理 | `/words` | 查看所有单词学习状态 |
 | ⚙️ 系统设置 | `/settings` | 配置邮箱、每日单词数等 |
@@ -200,6 +212,31 @@ word/
 ├── Dockerfile                        # Docker镜像构建
 ├── requirements.txt                  # Python依赖
 └── README.md                         # 项目说明（本文件）
+```
+
+## 💾 SQLite 稳定性与备份（推荐）
+
+项目默认使用 SQLite。已启用 WAL 以提升并发稳定性。
+
+### 备份（建议每天一次）
+
+服务器上可以用脚本做一致性备份（兼容 WAL）：
+
+```bash
+cd /root/word
+python3 scripts/backup_db.py
+```
+
+可用 crontab 定时备份（示例：每天 03:10，保留 30 天）：
+
+```bash
+crontab -e
+```
+
+加入：
+
+```cron
+10 3 * * * cd /root/word && /usr/bin/python3 scripts/backup_db.py --keep-days 30 >> logs/backup.log 2>&1
 ```
 
 ## 🧠 艾宾浩斯记忆曲线

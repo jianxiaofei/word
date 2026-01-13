@@ -11,19 +11,26 @@ dist/
 
 # 环境变量和配置文件（包含敏感信息）
 .env
+.env.*
+!.env.example
 config.py
 src/config.py
 
-# 部署脚本（包含服务器IP）
+# 虚拟环境
+.venv/
+venv/
+
+# 部署脚本（可能包含服务器IP/账号信息）
 upload.sh
 remote_deploy.sh
 scripts/upload.sh
 scripts/remote_deploy.sh
-scripts/deploy_docker.sh
 
 # 日志和数据文件
 *.log
 logs/*.log
+logs/
+backups/
 word_history.json
 src/data/word_history.json
 word_system.log
@@ -48,4 +55,7 @@ DEPLOYMENT.md
 
 # 数据库文件
 *.db
+*.db-wal
+*.db-shm
 src/data/*.db
+

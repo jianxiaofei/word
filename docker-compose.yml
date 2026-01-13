@@ -1,13 +1,25 @@
 version: '3.8'
 
 services:
+  # 统一入口反向代理（未来可继续加 /blog /app 等路由）
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: word-nginx
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
   # Web 统计面板服务
   web:
     build: .
     container_name: word-web
     restart: unless-stopped
-    ports:
-      - "80:5000"
+    expose:
+      - "5000"
     volumes:
       # 挂载整个 src 目录，以便代码修改即时生效
       - ./src:/app/src
@@ -17,6 +29,9 @@ services:
       - FLASK_APP=src/web/app.py
       - FLASK_DEBUG=0
       - TZ=Asia/Shanghai
+      - WEB_SECRET_KEY=${WEB_SECRET_KEY:-}
+      - WEB_ADMIN_USER=${WEB_ADMIN_USER:-admin}
+      - WEB_ADMIN_PASSWORD=${WEB_ADMIN_PASSWORD:-}
     command: python -m flask run --host=0.0.0.0
 
   # 定时任务调度服务

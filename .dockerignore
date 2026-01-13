@@ -1,0 +1,40 @@
+# Git / editor
+.git/
+.gitignore
+.vscode/
+.idea/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Env/config (secrets)
+.env
+.env.*
+!/.env.example
+src/config.py
+config.py
+
+# Runtime data / logs
+logs/
+*.log
+backups/
+
+# Databases
+*.db
+*.db-wal
+*.db-shm
+src/data/*.db
+src/data/*.db-wal
+src/data/*.db-shm
+
+# Large/irrelevant
+node_modules/

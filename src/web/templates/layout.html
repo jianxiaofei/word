@@ -85,14 +85,17 @@
             <h4 class="fw-bold text-primary">📚 单词学习</h4>
         </div>
         <nav class="nav flex-column">
-            <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">
+            <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{{ url_for('index') }}">
                 <i class="bi bi-bar-chart-fill"></i> 统计概览
             </a>
-            <a class="nav-link {% if request.path == '/books' %}active{% endif %}" href="/books">
+            <a class="nav-link {% if request.path == '/books' %}active{% endif %}" href="{{ url_for('books_page') }}">
                 <i class="bi bi-book-fill"></i> 词书管理
             </a>
-            <a class="nav-link {% if request.path == '/settings' %}active{% endif %}" href="/settings">
+            <a class="nav-link {% if request.path == '/settings' %}active{% endif %}" href="{{ url_for('settings_page') }}">
                 <i class="bi bi-gear-fill"></i> 系统设置
+            </a>
+            <a class="nav-link" href="{{ url_for('logout') }}">
+                <i class="bi bi-box-arrow-right"></i> 退出登录
             </a>
         </nav>
     </div>

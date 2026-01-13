@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
 """学习统计Web服务器 - Flask"""
 
-from flask import Flask, render_template, jsonify, request, redirect, url_for
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 import sys
 import re
+import os
+import secrets
+import hmac
 from pathlib import Path
 from datetime import datetime, timedelta
 from collections import defaultdict
 import config
+
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -18,7 +23,110 @@ from core.notifier import Notifier
 from core.word_selector import WordSelectorV2
 from core.word_parser import WordParser
 
+class PrefixMiddleware:
+    """支持把 Flask 挂在子路径下（例如 /word-web）。
+
+    Nginx 需设置：proxy_set_header X-Script-Name /word-web;
+    """
+
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        script_name = environ.get("HTTP_X_SCRIPT_NAME")
+        if script_name:
+            environ["SCRIPT_NAME"] = script_name
+            path_info = environ.get("PATH_INFO", "")
+            if path_info.startswith(script_name):
+                new_path = path_info[len(script_name) :]
+                environ["PATH_INFO"] = new_path if new_path else "/"
+        return self.wsgi_app(environ, start_response)
+
+
 app = Flask(__name__)
+
+# 反代场景下修正 X-Forwarded-*，并支持 /word-web 这类子路径部署
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+app.wsgi_app = PrefixMiddleware(app.wsgi_app)
+
+
+def _get_web_secret_key() -> str:
+    configured = os.environ.get("WEB_SECRET_KEY")
+    if configured:
+        return configured
+    generated = secrets.token_urlsafe(32)
+    app.logger.warning(
+        "WEB_SECRET_KEY 未设置，已临时生成随机值；重启会导致登录失效。建议在 .env 中设置 WEB_SECRET_KEY。"
+    )
+    return generated
+
+
+def _get_admin_credentials() -> tuple[str, str]:
+    username = os.environ.get("WEB_ADMIN_USER", "admin")
+    password = os.environ.get("WEB_ADMIN_PASSWORD")
+    if password:
+        return username, password
+
+    generated = secrets.token_urlsafe(16)
+    app.logger.warning(
+        "WEB_ADMIN_PASSWORD 未设置，已临时生成随机密码：%s （建议立刻在 .env 中设置 WEB_ADMIN_PASSWORD 并重启容器）",
+        generated,
+    )
+    return username, generated
+
+
+app.secret_key = _get_web_secret_key()
+_ADMIN_USER, _ADMIN_PASS = _get_admin_credentials()
+
+
+def _is_logged_in() -> bool:
+    return bool(session.get("logged_in"))
+
+
+@app.before_request
+def require_login():
+    # 邮件反馈接口需要匿名访问（从邮件按钮打开）
+    if request.path.startswith("/api/feedback"):
+        return None
+
+    # 登录/登出页放行
+    if request.path in ("/login", "/logout"):
+        return None
+
+    # Flask 静态资源放行（本项目目前基本不用）
+    if request.path.startswith("/static/"):
+        return None
+
+    if _is_logged_in():
+        return None
+
+    # API 未登录返回 401，页面则跳转登录
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    return redirect(url_for("login", next=request.full_path))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+
+        if username == _ADMIN_USER and hmac.compare_digest(password, _ADMIN_PASS):
+            session["logged_in"] = True
+            next_url = request.args.get("next")
+            return redirect(next_url or url_for("index"))
+
+        return render_template("login.html", error="用户名或密码错误"), 401
+
+    return render_template("login.html")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 def get_db():
     return DatabaseManager()
