@@ -51,6 +51,7 @@
                         <th>状态</th>
                         <th>掌握度</th>
                         <th>下次复习</th>
+                        <th>绑定</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -75,12 +76,22 @@
                         </td>
                         <td>{{ word.next_review or '-' }}</td>
                         <td>
+                            {% if session.get('user_id') %}
+                                {% set is_bound = bound_ids and (word.id in bound_ids) %}
+                                <button class="btn btn-sm {% if is_bound %}btn-success{% else %}btn-outline-success{% endif %}" onclick="toggleBinding({{ word.id }}, {{ 'true' if is_bound else 'false' }})">
+                                    {% if is_bound %}已绑定{% else %}绑定{% endif %}
+                                </button>
+                            {% else %}
+                                <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
                             <button class="btn btn-sm btn-outline-secondary" onclick="editWord({{ word.id }})">编辑</button>
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">暂无数据</td>
+                        <td colspan="8" class="text-center py-4 text-muted">暂无数据</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -145,6 +156,7 @@
 {% block scripts %}
 <script>
 const API_ADD_WORD_URL = "{{ url_for('add_word') }}";
+const API_BINDING_URL_PREFIX = "/api/words/";
 
 async function saveWord() {
     const form = document.getElementById('addWordForm');
@@ -174,6 +186,28 @@ async function saveWord() {
 function editWord(id) {
     // TODO: Implement edit
     alert('编辑功能待开发');
+}
+
+async function toggleBinding(wordId, currentlyBound) {
+    try {
+        const response = await fetch(`${API_BINDING_URL_PREFIX}${wordId}/binding`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ action: currentlyBound ? 'unbind' : 'bind' })
+        });
+
+        if (response.ok) {
+            location.reload();
+        } else {
+            const data = await response.json().catch(() => ({}));
+            alert(data.error || '操作失败');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('请求失败');
+    }
 }
 </script>
 {% endblock %}

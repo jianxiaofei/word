@@ -79,8 +79,24 @@ app.secret_key = _get_web_secret_key()
 _ADMIN_USER, _ADMIN_PASS = _get_admin_credentials()
 
 
+def _allow_register() -> bool:
+    return os.environ.get("WEB_ALLOW_REGISTER", "true").lower() in ("true", "1", "yes")
+
+
 def _is_logged_in() -> bool:
-    return bool(session.get("logged_in"))
+    return bool(session.get("is_admin") or session.get("user_id"))
+
+
+def _is_admin() -> bool:
+    return bool(session.get("is_admin"))
+
+
+def _require_admin():
+    if _is_admin():
+        return None
+    if request.path.startswith("/api/"):
+        return jsonify({"error": "Forbidden"}), 403
+    return "Forbidden", 403
 
 
 @app.before_request
@@ -89,8 +105,8 @@ def require_login():
     if request.path.startswith("/api/feedback"):
         return None
 
-    # 登录/登出页放行
-    if request.path in ("/login", "/logout"):
+    # 登录/登出/注册页放行
+    if request.path in ("/login", "/logout", "/register"):
         return None
 
     # Flask 静态资源放行（本项目目前基本不用）
@@ -98,6 +114,17 @@ def require_login():
         return None
 
     if _is_logged_in():
+        # 管理员才能访问敏感配置与词书管理
+        admin_only_paths = (
+            "/settings",
+            "/books",
+            "/api/settings",
+            "/api/books",
+            "/api/test-email",
+            "/api/test-webhook",
+        )
+        if request.path.startswith(admin_only_paths):
+            return _require_admin()
         return None
 
     # API 未登录返回 401，页面则跳转登录
@@ -113,14 +140,59 @@ def login():
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
 
+        # 1) 管理员登录（兼容旧模式）
         if username == _ADMIN_USER and hmac.compare_digest(password, _ADMIN_PASS):
-            session["logged_in"] = True
+            session.clear()
+            session["is_admin"] = True
+            session["username"] = username
             next_url = request.args.get("next")
             return redirect(next_url or url_for("index"))
 
-        return render_template("login.html", error="用户名或密码错误"), 401
+        # 2) 普通用户登录
+        db = get_db()
+        user = db.verify_user(username, password)
+        if user:
+            session.clear()
+            session["user_id"] = user["id"]
+            session["username"] = user["username"]
+            session["is_admin"] = False
+            next_url = request.args.get("next")
+            return redirect(next_url or url_for("words_page"))
 
-    return render_template("login.html")
+        return render_template("login.html", error="用户名或密码错误", allow_register=_allow_register()), 401
+
+    return render_template("login.html", allow_register=_allow_register())
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if not _allow_register():
+        return "Registration disabled", 403
+
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        password2 = request.form.get("password2") or ""
+
+        if password != password2:
+            return render_template("register.html", error="两次输入的密码不一致"), 400
+
+        db = get_db()
+        ok, msg = db.create_user(username, password)
+        if not ok:
+            return render_template("register.html", error=msg), 400
+
+        user = db.verify_user(username, password)
+        if not user:
+            return redirect(url_for("login"))
+
+        session.clear()
+        session["user_id"] = user["id"]
+        session["username"] = user["username"]
+        session["is_admin"] = False
+        return redirect(url_for("words_page"))
+
+    return render_template("register.html")
 
 
 @app.route("/logout")
@@ -128,23 +200,46 @@ def logout():
     session.clear()
     return redirect(url_for("login"))
 
+
+@app.route('/api/me')
+def api_me():
+    if not _is_logged_in():
+        return jsonify({"error": "Unauthorized"}), 401
+    return jsonify({
+        "is_admin": bool(session.get("is_admin")),
+        "user_id": session.get("user_id"),
+        "username": session.get("username"),
+    })
+
 def get_db():
     return DatabaseManager()
 
-def calculate_statistics():
-    """计算统计数据"""
+def calculate_statistics(user_id: int = None, is_admin: bool = False):
+    """计算统计数据。
+
+    - 管理员：全局统计（当前激活词书的学习记录）
+    - 普通用户：仅统计该用户“绑定”的单词集合
+    """
     db = get_db()
-    all_records = db.get_all_records()
-    active_book = db.get_active_book()
-    total_words = active_book['total_words'] if active_book else 0
+
+    if (not is_admin) and user_id:
+        bound_words = db.get_user_bound_words(user_id)
+        total_words = len(bound_words)
+        learned_records = [w for w in bound_words if int(w.get('status') or 0) == 1]
+        scope = 'user'
+    else:
+        learned_records = db.get_all_records()
+        active_book = db.get_active_book()
+        total_words = active_book['total_words'] if active_book else 0
+        scope = 'global'
     
     # 基础统计
-    total_learned = len(all_records)
-    total_reviews = sum(w.get('review_count', 0) for w in all_records)
+    total_learned = len(learned_records)
+    total_reviews = sum(int(w.get('review_count', 0) or 0) for w in learned_records)
     
     # 掌握度统计
     mastery_counts = defaultdict(int)
-    for word_data in all_records:
+    for word_data in learned_records:
         level = word_data.get('mastery_level', 0)
         mastery_counts[level] += 1
     
@@ -156,26 +251,27 @@ def calculate_statistics():
     progress = (total_learned / total_words * 100) if total_words > 0 else 0
     
     # 连续学习天数
-    streak_days = calculate_streak(all_records)
+    streak_days = calculate_streak(learned_records)
     
     # 今日待复习
     today = datetime.now().strftime('%Y-%m-%d')
     today_review = [
-        w for w in all_records 
+        w for w in learned_records
         if w.get('next_review') and w.get('next_review') <= today
     ]
     
     # 最近学习的单词
     recent_words = sorted(
-        all_records,
+        learned_records,
         key=lambda x: x.get('last_review', '1970-01-01'),
         reverse=True
     )[:10]
     
     # 按日期统计学习量
-    daily_stats = calculate_daily_stats(all_records)
+    daily_stats = calculate_daily_stats(learned_records)
     
     return {
+        'scope': scope,
         'total': total_words,
         'total_learned': total_learned,
         'total_reviews': total_reviews,
@@ -257,7 +353,7 @@ def calculate_daily_stats(records):
 @app.route('/')
 def index():
     """主页 - 统计面板"""
-    stats = calculate_statistics()
+    stats = calculate_statistics(user_id=session.get('user_id'), is_admin=bool(session.get('is_admin')))
     return render_template('statistics.html', stats=stats)
 
 @app.route('/settings')
@@ -392,7 +488,7 @@ def activate_book():
 @app.route('/api/stats')
 def api_stats():
     """API接口 - 返回统计数据JSON"""
-    stats = calculate_statistics()
+    stats = calculate_statistics(user_id=session.get('user_id'), is_admin=bool(session.get('is_admin')))
     return jsonify(stats)
 
 
@@ -419,6 +515,11 @@ def words_page():
     
     # 获取单词列表（修改为按 book_id 过滤）
     words, total = db.get_words(page=page, query=query, status=status, book_id=book_id)
+
+    bound_ids = set()
+    user_id = session.get('user_id')
+    if user_id and words:
+        bound_ids = db.get_user_bound_word_ids(user_id, [w['id'] for w in words])
     
     total_pages = (total + 19) // 20
     
@@ -426,7 +527,50 @@ def words_page():
                          words=words, 
                          current_page=page, 
                          total_pages=total_pages,
-                         book=book)
+                         book=book,
+                         bound_ids=bound_ids)
+
+
+@app.route('/my-words')
+def my_words_page():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('words_page'))
+
+    page = request.args.get('page', 1, type=int)
+    query = request.args.get('q')
+
+    db = get_db()
+    words, total = db.list_user_bound_words(user_id=user_id, page=page, page_size=20, query=query)
+    total_pages = (total + 19) // 20
+
+    return render_template('my_words.html', words=words, current_page=page, total_pages=total_pages)
+
+
+@app.route('/api/words/<int:word_id>/binding', methods=['POST'])
+def api_word_binding(word_id: int):
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.json or {}
+    action = (data.get('action') or '').strip().lower()
+    db = get_db()
+
+    if action == 'bind':
+        db.bind_word_to_user(user_id, word_id)
+        return jsonify({"success": True, "bound": True})
+    if action == 'unbind':
+        db.unbind_word_from_user(user_id, word_id)
+        return jsonify({"success": True, "bound": False})
+
+    # default: toggle
+    bound = word_id in db.get_user_bound_word_ids(user_id, [word_id])
+    if bound:
+        db.unbind_word_from_user(user_id, word_id)
+        return jsonify({"success": True, "bound": False})
+    db.bind_word_to_user(user_id, word_id)
+    return jsonify({"success": True, "bound": True})
 
 @app.route('/api/words', methods=['POST'])
 def add_word():

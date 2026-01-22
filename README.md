@@ -150,9 +150,18 @@ Web 管理面板默认需要登录（会跳到 `/login`）。在服务器部署�
 WEB_ADMIN_USER=admin
 WEB_ADMIN_PASSWORD=your_strong_password
 WEB_SECRET_KEY=your_long_random_string
+
+# 可选：是否允许用户自行注册（默认 true）
+WEB_ALLOW_REGISTER=true
 ```
 
 修改后重启：`docker compose up -d --build`。
+
+#### 普通用户注册/登录与单词绑定
+
+- 访问 `/register` 可注册普通用户（若 `WEB_ALLOW_REGISTER=true`）。
+- 普通用户登录后可以在“单词列表”里对单词进行“绑定/取消绑定”，并在“我的单词”查看已绑定单词。
+- 管理员仍通过 `WEB_ADMIN_USER/WEB_ADMIN_PASSWORD` 登录；词书管理、系统设置等页面仅管理员可访问。
 
 ### 页面功能
 

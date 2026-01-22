@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 统一入口反向代理（未来可继续加 /blog /app 等路由）
   nginx:
@@ -20,6 +18,8 @@ services:
     restart: unless-stopped
     expose:
       - "5000"
+    env_file:
+      - .env
     volumes:
       # 挂载整个 src 目录，以便代码修改即时生效
       - ./src:/app/src
@@ -32,6 +32,7 @@ services:
       - WEB_SECRET_KEY=${WEB_SECRET_KEY:-}
       - WEB_ADMIN_USER=${WEB_ADMIN_USER:-admin}
       - WEB_ADMIN_PASSWORD=${WEB_ADMIN_PASSWORD:-}
+      - WEB_ALLOW_REGISTER=${WEB_ALLOW_REGISTER:-true}
     command: python -m flask run --host=0.0.0.0
 
   # 定时任务调度服务
@@ -41,6 +42,8 @@ services:
     restart: unless-stopped
     depends_on:
       - web
+    env_file:
+      - .env
     volumes:
       - ./src:/app/src
       - ./logs:/app/logs

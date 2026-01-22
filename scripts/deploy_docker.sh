@@ -6,7 +6,8 @@ set -euo pipefail
 usage() {
     cat << 'USAGE'
 用法:
-  ./scripts/deploy_docker.sh --server-ip <ip> [--server-user <user>] [--remote-dir <dir>] [--sync-data]
+    ./scripts/deploy_docker.sh <ip>
+    ./scripts/deploy_docker.sh --server-ip <ip> [--server-user <user>] [--remote-dir <dir>] [--sync-data]
 
 参数:
   --server-ip     目标服务器 IP（必填）
@@ -15,6 +16,7 @@ usage() {
   --sync-data     同步数据文件（迁移用：会覆盖远程 word.db/word_history.json）
 
 示例:
+    ./scripts/deploy_docker.sh 203.0.113.10
     ./scripts/deploy_docker.sh --server-ip 203.0.113.10
     ./scripts/deploy_docker.sh --server-ip 203.0.113.10 --sync-data
 USAGE
@@ -24,6 +26,12 @@ SERVER_IP=""
 SERVER_USER="root"
 REMOTE_DIR="/root/word"
 SYNC_DATA=0
+
+# 兼容最简用法：./scripts/deploy_docker.sh <ip>
+if [[ $# -ge 1 && "${1:-}" != "" && "${1:-}" != -* ]]; then
+    SERVER_IP="$1"
+    shift 1
+fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -44,6 +52,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# 允许无参数交互式输入
+if [[ -z "$SERVER_IP" ]]; then
+    read -r -p "请输入目标服务器 IP: " SERVER_IP
+fi
 
 if [[ -z "$SERVER_IP" ]]; then
     echo "缺少必填参数: --server-ip" >&2
@@ -79,6 +92,8 @@ if command -v rsync &> /dev/null; then
         --exclude '.env' \
         --exclude 'src/data/word.db' \
         --exclude 'src/data/*.db' \
+        --exclude 'src/data/*.db-wal' \
+        --exclude 'src/data/*.db-shm' \
         "$PROJECT_ROOT/" "$SERVER_USER@$SERVER_IP:$REMOTE_DIR/"
 
     if [[ "$SYNC_DATA" -eq 1 ]]; then
@@ -181,6 +196,17 @@ END_DAEMON_JSON
             echo "正在从模板创建 config.py，请稍后手动编辑配置！"
             cp src/config.example.py src/config.py
         fi
+    fi
+
+    # 检查 .env（用于 Web 登录/注册开关等环境变量；docker-compose.yml 使用 env_file 读取）
+    if [ ! -f ".env" ]; then
+        echo "警告: .env 不存在，将创建一个模板文件（请尽快编辑并重启容器）"
+        cat > .env <<'END_ENV'
+WEB_SECRET_KEY=
+WEB_ADMIN_USER=admin
+WEB_ADMIN_PASSWORD=
+WEB_ALLOW_REGISTER=true
+END_ENV
     fi
 
     echo "停止旧容器..."

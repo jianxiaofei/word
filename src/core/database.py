@@ -6,6 +6,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Set, Optional, Tuple
 
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 def _configure_sqlite_connection(conn: sqlite3.Connection) -> None:
     # Better concurrency and fewer 'database is locked' errors.
@@ -92,9 +94,198 @@ class DatabaseManager:
             FOREIGN KEY (book_id) REFERENCES books(id)
         )
         ''')
+
+        # --- Auth: Users ---
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login_at TIMESTAMP
+        )
+        ''')
+
+        # --- User <-> Word bindings (e.g., personal word list / ownership) ---
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_word_bindings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            word_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, word_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+        )
+        ''')
         
         conn.commit()
         conn.close()
+
+    # --- Auth API ---
+    def create_user(self, username: str, password: str) -> Tuple[bool, str]:
+        username = (username or "").strip()
+        if not username:
+            return False, "用户名不能为空"
+        if len(username) < 3:
+            return False, "用户名至少 3 个字符"
+        if not password or len(password) < 6:
+            return False, "密码至少 6 个字符"
+
+        password_hash = generate_password_hash(password, method="pbkdf2:sha256")
+
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'INSERT INTO users (username, password_hash) VALUES (?, ?)',
+                (username, password_hash),
+            )
+            conn.commit()
+            return True, "ok"
+        except sqlite3.IntegrityError:
+            return False, "用户名已存在"
+        except Exception as e:
+            return False, str(e)
+        finally:
+            conn.close()
+
+    def get_user_by_username(self, username: str) -> Optional[Dict]:
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, username, password_hash, is_active, created_at, last_login_at FROM users WHERE username = ? LIMIT 1',
+            ((username or "").strip(),),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return None
+        cols = ['id', 'username', 'password_hash', 'is_active', 'created_at', 'last_login_at']
+        return dict(zip(cols, row))
+
+    def verify_user(self, username: str, password: str) -> Optional[Dict]:
+        user = self.get_user_by_username(username)
+        if not user:
+            return None
+        if not user.get('is_active'):
+            return None
+        if not check_password_hash(user['password_hash'], password or ""):
+            return None
+
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?', (user['id'],))
+        conn.commit()
+        conn.close()
+        return user
+
+    # --- User-Word binding API ---
+    def bind_word_to_user(self, user_id: int, word_id: int) -> bool:
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'INSERT OR IGNORE INTO user_word_bindings (user_id, word_id) VALUES (?, ?)',
+                (int(user_id), int(word_id)),
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    def unbind_word_from_user(self, user_id: int, word_id: int) -> bool:
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'DELETE FROM user_word_bindings WHERE user_id = ? AND word_id = ?',
+                (int(user_id), int(word_id)),
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+
+    def get_user_bound_word_ids(self, user_id: int, word_ids: Optional[List[int]] = None) -> Set[int]:
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            if word_ids:
+                placeholders = ",".join(["?"] * len(word_ids))
+                cursor.execute(
+                    f'SELECT word_id FROM user_word_bindings WHERE user_id = ? AND word_id IN ({placeholders})',
+                    [int(user_id)] + [int(w) for w in word_ids],
+                )
+            else:
+                cursor.execute('SELECT word_id FROM user_word_bindings WHERE user_id = ?', (int(user_id),))
+
+            rows = cursor.fetchall()
+            return {int(r[0]) for r in rows}
+        finally:
+            conn.close()
+
+    def list_user_bound_words(self, user_id: int, page: int = 1, page_size: int = 20, query: str = None) -> Tuple[List[Dict], int]:
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        offset = (page - 1) * page_size
+
+        params: List[object] = [int(user_id)]
+        where_extra = ""
+        if query:
+            where_extra = " AND (w.word LIKE ? OR w.definition LIKE ?)"
+            params.extend([f"%{query}%", f"%{query}%"])
+
+        cursor.execute(
+            f'''
+            SELECT COUNT(*)
+            FROM user_word_bindings b
+            JOIN words w ON w.id = b.word_id
+            WHERE b.user_id = ?{where_extra}
+            ''',
+            params,
+        )
+        total = cursor.fetchone()[0]
+
+        cursor.execute(
+            f'''
+            SELECT w.*
+            FROM user_word_bindings b
+            JOIN words w ON w.id = b.word_id
+            WHERE b.user_id = ?{where_extra}
+            ORDER BY b.created_at DESC
+            LIMIT ? OFFSET ?
+            ''',
+            params + [page_size, offset],
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        cols = ['id', 'book_id', 'word', 'phonetic', 'definition', 'status', 'first_learned', 'last_review', 'next_review', 'review_count', 'mastery_level', 'created_at', 'updated_at']
+        words = [dict(zip(cols, row)) for row in rows]
+        return words, total
+
+    def get_user_bound_words(self, user_id: int) -> List[Dict]:
+        """获取用户绑定的全部单词（用于统计等场景）。"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                '''
+                SELECT w.*
+                FROM user_word_bindings b
+                JOIN words w ON w.id = b.word_id
+                WHERE b.user_id = ?
+                ORDER BY b.created_at DESC
+                ''',
+                (int(user_id),),
+            )
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+
+        cols = ['id', 'book_id', 'word', 'phonetic', 'definition', 'status', 'first_learned', 'last_review', 'next_review', 'review_count', 'mastery_level', 'created_at', 'updated_at']
+        return [dict(zip(cols, row)) for row in rows]
 
     def migrate_v1_to_v2(self, default_words: List[Dict]):
         """从V1迁移到V2结构"""
