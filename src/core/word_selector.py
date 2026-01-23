@@ -81,6 +81,12 @@ class WordSelectorV2:
         # 3. 获取新单词
         new_words = self.select_new_words(new_count)
         
+        # 4. 标记这些单词已发送（用于24小时自动标记）
+        today = datetime.now().date().isoformat()
+        review_word_ids = [w['id'] for w in review_words]
+        if review_word_ids:
+            self.db.words.mark_words_sent(review_word_ids, today)
+        
         return new_words, review_words
     
     def mark_reviewed(self, word_id: int):
@@ -111,6 +117,9 @@ class WordSelectorV2:
             'review_count': new_review_count,
             'mastery_level': new_mastery_level
         })
+        
+        # 清除发送标记（表示用户已反馈）
+        self.db.words.clear_sent_date(word_id)
     
     def mark_unknown(self, word_id: int):
         """
@@ -135,6 +144,44 @@ class WordSelectorV2:
             'review_count': record['review_count'] + 1, # 增加一次复习记录
             'mastery_level': new_mastery_level
         })
+        
+        # 清除发送标记（表示用户已反馈）
+        self.db.words.clear_sent_date(word_id)
+    
+    def auto_mark_sent_words(self, hours: int = 24) -> int:
+        """
+        自动标记已发送但未反馈的单词为"已复习"
+        
+        Args:
+            hours: 超时小时数，默认24小时
+            
+        Returns:
+            标记的单词数量
+        """
+        today = datetime.now().date()
+        before_date = (today - timedelta(days=1)).isoformat()  # 昨天之前的
+        
+        # 获取需要自动标记的单词
+        words_to_mark = self.db.words.get_words_sent_before(before_date)
+        
+        if not words_to_mark:
+            return 0
+        
+        # 自动标记为已复习
+        marked_count = 0
+        for word in words_to_mark:
+            try:
+                # 按"认识"处理
+                self.mark_reviewed(word['id'])
+                # 清除发送标记
+                self.db.words.clear_sent_date(word['id'])
+                marked_count += 1
+            except Exception as e:
+                # 记录错误但继续处理其他单词
+                print(f"自动标记单词 {word['word']} 失败: {e}")
+                continue
+        
+        return marked_count
     
     def get_progress(self) -> Dict:
         """

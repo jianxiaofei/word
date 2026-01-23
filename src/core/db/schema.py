@@ -44,12 +44,19 @@ def init_database_schema(conn: sqlite3.Connection):
         next_review DATE,
         review_count INTEGER DEFAULT 0,
         mastery_level INTEGER DEFAULT 0,
+        sent_date DATE,
         
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (book_id) REFERENCES books(id)
     )
     ''')
+    
+    # 添加 sent_date 列（如果不存在）- 用于24小时自动标记机制
+    cursor.execute('PRAGMA table_info(words)')
+    word_cols = {row[1] for row in cursor.fetchall()}
+    if 'sent_date' not in word_cols:
+        cursor.execute('ALTER TABLE words ADD COLUMN sent_date DATE')
 
     # --- Auth: Users ---
     cursor.execute('''

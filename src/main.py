@@ -63,9 +63,15 @@ def main():
         server_url = db.get_setting('server_url') or ''
         daily_review_words = int(db.get_setting('daily_review_words') or 5)
         
+        # 0. 自动标记24小时前发送但未反馈的单词
+        logger.info("检查需要自动标记的单词...")
+        selector = WordSelectorV2()
+        auto_marked = selector.auto_mark_sent_words(hours=24)
+        if auto_marked > 0:
+            logger.info(f"✓ 已自动标记 {auto_marked} 个超时未反馈的单词为已复习")
+        
         # 1. 选择单词（新词+复习词）
         logger.info(f"正在选择单词...")
-        selector = WordSelectorV2() # V2不再需要文件路径
         new_words, review_words = selector.select_words(new_count=daily_new_words, review_count=daily_review_words)
         progress = selector.get_progress()
         
@@ -116,10 +122,10 @@ def main():
                 duration_ms=duration_ms,
                 provider='smtp'
             )
-            # 注意: 不再自动标记复习完成，由用户通过邮件中的按钮交互反馈
+            # 混合方案：复习单词已标记sent_date，等待用户反馈或24小时自动标记
             # 新学的单词已在 select_new_words 中更新状态
-            # 复习单词需要用户点击"认识"按钮后才会更新 next_review
-            logger.info("✓ 邮件已发送，等待用户反馈")
+            logger.info("✓ 邮件已发送，复习单词等待用户反馈（24小时内）")
+            logger.info(f"  提示：请访问 {server_url} 或点击邮件中的按钮反馈学习效果")
         else:
             logger.error(f"✗ 邮件发送失败")
             # 记录失败日志（不影响后续重试）

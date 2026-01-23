@@ -370,3 +370,57 @@ class WordRepository:
         )
         conn.commit()
         conn.close()
+
+    def mark_words_sent(self, word_ids: List[int], sent_date: str):
+        """标记单词已发送（用于24小时自动标记机制）"""
+        if not word_ids:
+            return
+        
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        placeholders = ','.join('?' * len(word_ids))
+        cursor.execute(f'''
+        UPDATE words 
+        SET sent_date = ?
+        WHERE id IN ({placeholders})
+        ''', [sent_date] + word_ids)
+        
+        conn.commit()
+        conn.close()
+    
+    def get_words_sent_before(self, before_date: str) -> List[Dict]:
+        """获取在指定日期之前（包含当天）发送但未反馈的单词
+        
+        条件：sent_date <= before_date 且 last_review != sent_date
+        这表示单词已发送但用户未标记反馈
+        """
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+        SELECT * FROM words 
+        WHERE sent_date IS NOT NULL 
+        AND sent_date <= ?
+        AND (last_review IS NULL OR last_review != sent_date)
+        AND status = 1
+        ''', (before_date,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return []
+        
+        cols = [d[0] for d in cursor.description]
+        return [dict(zip(cols, row)) for row in rows]
+    
+    def clear_sent_date(self, word_id: int):
+        """清除单词的发送日期标记"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        cursor.execute('UPDATE words SET sent_date = NULL WHERE id = ?', (word_id,))
+        
+        conn.commit()
+        conn.close()

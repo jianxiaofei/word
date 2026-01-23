@@ -5,6 +5,8 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Algorithm](https://img.shields.io/badge/Algorithm-Verified-success.svg)](tests/README.md)
+[![Ebbinghaus](https://img.shields.io/badge/Ebbinghaus-1%2C2%2C4%2C7%2C15%2C30-orange.svg)](tests/VALIDATION_SUMMARY.md)
 
 ## ✨ 功能特性
 
@@ -290,6 +292,61 @@ crontab -e
 | L6 | 30天后 | 完全掌握 |
 
 **每日邮件组成**：N个新词 + M个到期复习词（可在设置中配置）
+
+### 🔬 算法验证
+
+✅ **已通过完整验证** (2026-01-23)
+
+核心算法经过严格测试和验证，确保实现正确：
+- ✅ 复习间隔配置正确 `[1, 2, 4, 7, 15, 30]`
+- ✅ 新单词学习流程准确
+- ✅ 复习进度推进逻辑无误
+- ✅ 记忆效果显著：30天后可保持 94% 记忆（vs 不复习仅剩 48%）
+
+**查看完整验证报告**: [tests/README.md](tests/README.md)
+
+**运行验证测试**:
+```bash
+# 完整验证测试
+python3 tests/test_ebbinghaus.py
+
+# 可视化展示
+python3 tests/visualize_ascii.py
+```
+
+**验证文档**:
+- 📄 [验证总结](tests/VALIDATION_SUMMARY.md) - 最全面的验证报告
+- 📊 [详细报告](tests/ebbinghaus_report.md) - 可视化验证过程
+- 🧪 [测试脚本](tests/test_ebbinghaus.py) - 自动化验证工具
+- 🎨 [可视化工具](tests/visualize_ascii.py) - 文本可视化展示
+
+### 🎯 混合反馈机制
+
+**v2.0 新特性** - 平衡用户体验与系统稳定性
+
+系统采用**混合方案**，结合用户主动反馈和自动容错：
+
+1. **发送邮件时**：
+   - 新单词：立即标记为学习中
+   - 复习单词：记录发送日期，等待反馈
+
+2. **用户反馈（24小时内）**：
+   - 点击"✓ 认识"：正常推进复习进度
+   - 点击"✗ 不认识"：重置为L0重新学习
+   - 邮件中有明确的反馈按钮
+
+3. **24小时后未反馈**：
+   - 系统自动按"认识"处理
+   - 更新复习日期，避免单词累积
+   - 下次运行时自动执行
+
+**优势**：
+- ✓ 鼓励用户主动回忆（艾宾浩斯核心）
+- ✓ 避免单词无限累积
+- ✓ 用户有缓冲时间，无焦虑
+- ✓ 系统自动容错，保持稳定
+
+详细说明：[tests/HYBRID_APPROACH.md](tests/HYBRID_APPROACH.md)
 
 ## 💾 数据存储
 

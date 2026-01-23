@@ -293,8 +293,11 @@
                 {% endif %}
                 {% if server_url and word.is_review %}
                 <div class="action-buttons">
-                    <a href="{{ server_url }}/api/feedback?word_id={{ word.id }}&action=known" class="btn btn-success" target="_blank">认识 / 已复习</a>
-                    <a href="{{ server_url }}/api/feedback?word_id={{ word.id }}&action=unknown" class="btn btn-danger" target="_blank">不认识 / 重置</a>
+                    <a href="{{ server_url }}/words/mark/{{ word.id }}?action=known" class="btn btn-success" target="_blank">✓ 认识 / 已复习</a>
+                    <a href="{{ server_url }}/words/mark/{{ word.id }}?action=unknown" class="btn btn-danger" target="_blank">✗ 不认识 / 重置</a>
+                </div>
+                <div style="text-align: center; margin-top: 8px; font-size: 11px; color: #999;">
+                    💡 请点击按钮反馈学习效果，24小时内未反馈将自动按"认识"处理
                 </div>
                 {% endif %}
             </div>
