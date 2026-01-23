@@ -30,7 +30,6 @@ scripts/remote_deploy.sh
 *.log
 logs/*.log
 logs/
-docs/
 backups/
 word_history.json
 src/data/word_history.json
@@ -40,10 +39,7 @@ cron.log
 
 # 部署和学习笔记（可能包含敏感信息或临时记录）
 DEPLOYMENT.md
-docs/DEPLOYMENT_OPTIMIZATION.md
-docs/deploy/
-docs/python_base/
-docs/tests/
+docs/
 
 # IDE
 .vscode/
