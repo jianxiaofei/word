@@ -33,6 +33,7 @@ logs/
 backups/
 word_history.json
 src/data/word_history.json
+resources/word_history.json
 word_system.log
 cron.log
 

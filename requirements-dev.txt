@@ -1,0 +1,14 @@
+# 开发环境额外依赖
+-r requirements.txt
+
+# 测试
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# 代码质量
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# 类型检查支持
+types-requests>=2.25.0

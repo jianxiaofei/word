@@ -191,11 +191,11 @@ END_DAEMON_JSON
     fi
 
     # 检查配置文件
-    if [ ! -f "src/config.py" ]; then
-        echo "警告: src/config.py 不存在！"
-        if [ -f "src/config.example.py" ]; then
+    if [ ! -f "src/config/config.py" ]; then
+        echo "警告: src/config/config.py 不存在！"
+        if [ -f "src/config/config.example.py" ]; then
             echo "正在从模板创建 config.py，请稍后手动编辑配置！"
-            cp src/config.example.py src/config.py
+            cp src/config/config.example.py src/config/config.py
         fi
     fi
 

@@ -24,4 +24,4 @@ RUN pip install --upgrade pip && \
 COPY . .
 
 # 创建必要的目录
-RUN mkdir -p logs src/data
+RUN mkdir -p logs src/data resources

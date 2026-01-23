@@ -141,7 +141,7 @@ fi
 # 3. 同步配置文件
 echo ""
 echo "[3/4] 同步配置文件..."
-ssh "$SERVER_USER@$SERVER_IP" "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/logs' '$REMOTE_DIR/src/data'"
+ssh "$SERVER_USER@$SERVER_IP" "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/volumes/config' '$REMOTE_DIR/volumes/data' '$REMOTE_DIR/volumes/logs' '$REMOTE_DIR/backups'"
 
 # 创建生产环境的 docker-compose.yml
 cat > /tmp/docker-compose.prod.yml << 'EOF'
@@ -157,11 +157,11 @@ services:
     env_file:
       - .env
     volumes:
-      # 挂载配置文件（服务器上的配置优先）
-      - ./src/config.py:/app/src/config.py:ro
+      # 挂载配置文件
+      - ./volumes/config/config.py:/app/src/config/config.py:ro
       # 挂载数据目录和日志
-      - ./src/data:/app/src/data
-      - ./logs:/app/logs
+      - ./volumes/data:/app/src/data
+      - ./volumes/logs:/app/logs
     environment:
       - FLASK_APP=src/web/app.py
       - FLASK_DEBUG=0
@@ -184,9 +184,9 @@ services:
       - .env
     volumes:
       # 挂载配置文件
-      - ./src/config.py:/app/src/config.py:ro
-      - ./src/data:/app/src/data
-      - ./logs:/app/logs
+      - ./volumes/config/config.py:/app/src/config/config.py:ro
+      - ./volumes/data:/app/src/data
+      - ./volumes/logs:/app/logs
     environment:
       - SCHEDULE_TIME=07:30
       - TZ=Asia/Shanghai
@@ -198,12 +198,12 @@ scp /tmp/docker-compose.prod.yml "$SERVER_USER@$SERVER_IP:$REMOTE_DIR/docker-com
 rm /tmp/docker-compose.prod.yml
 
 # 上传必要的配置文件（如果不存在）
-if [[ -f "$PROJECT_ROOT/src/config.py" ]]; then
-    ssh "$SERVER_USER@$SERVER_IP" "test -f '$REMOTE_DIR/src/config.py' || echo '需要配置文件'"
-    read -p "是否上传 src/config.py？(y/n) " -n 1 -r
+if [[ -f "$PROJECT_ROOT/src/config/config.py" ]]; then
+    ssh "$SERVER_USER@$SERVER_IP" "test -f '$REMOTE_DIR/volumes/config/config.py' || echo '需要配置文件'"
+    read -p "是否上传 src/config/config.py？(y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        scp "$PROJECT_ROOT/src/config.py" "$SERVER_USER@$SERVER_IP:$REMOTE_DIR/src/config.py"
+        scp "$PROJECT_ROOT/src/config/config.py" "$SERVER_USER@$SERVER_IP:$REMOTE_DIR/volumes/config/config.py"
     fi
 fi
 

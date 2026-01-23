@@ -38,7 +38,7 @@ class EmailChannel(NotificationChannel):
     
     def _get_default_template_path(self) -> str:
         """获取默认邮件模板路径"""
-        return str(Path(__file__).parent.parent.parent / 'data' / 'email_template.html')
+        return str(Path(__file__).parent.parent.parent / 'web' / 'templates' / 'email_template.html')
     
     def get_channel_name(self) -> str:
         return 'email'
