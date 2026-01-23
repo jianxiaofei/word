@@ -7,7 +7,6 @@ from typing import List, Dict, Optional, Tuple, Set
 from .connection import get_connection, get_default_db_path
 from .schema import init_database_schema
 from .user_repository import UserRepository
-from .binding_repository import BindingRepository
 from .settings_repository import SettingsRepository
 from .book_repository import BookRepository
 from .word_repository import WordRepository
@@ -29,7 +28,6 @@ class DatabaseManager:
         # 创建各个 Repository
         get_conn_func = lambda: get_connection(db_path)
         self.users = UserRepository(get_conn_func)
-        self.bindings = BindingRepository(get_conn_func)
         self.settings = SettingsRepository(get_conn_func)
         self.books = BookRepository(get_conn_func)
         self.words = WordRepository(get_conn_func)
@@ -47,21 +45,21 @@ class DatabaseManager:
     def verify_user(self, username: str, password: str) -> Optional[Dict]:
         return self.users.verify_user(username, password)
     
-    # === 用户-单词绑定方法（委托给 BindingRepository） ===
+    # === 用户-单词学习记录方法（learning_records） ===
     def bind_word_to_user(self, user_id: int, word_id: int) -> bool:
-        return self.bindings.bind_word_to_user(user_id, word_id)
+        return self.words.bind_word_to_user(user_id, word_id)
     
     def unbind_word_from_user(self, user_id: int, word_id: int) -> bool:
-        return self.bindings.unbind_word_from_user(user_id, word_id)
+        return self.words.unbind_word_from_user(user_id, word_id)
     
     def get_user_bound_word_ids(self, user_id: int, word_ids: Optional[List[int]] = None) -> Set[int]:
-        return self.bindings.get_user_bound_word_ids(user_id, word_ids)
+        return self.words.get_user_bound_word_ids(user_id, word_ids)
     
     def list_user_bound_words(self, user_id: int, page: int = 1, page_size: int = 20, query: str = None) -> Tuple[List[Dict], int]:
-        return self.bindings.list_user_bound_words(user_id, page, page_size, query)
+        return self.words.list_user_bound_words(user_id, page, page_size, query)
     
     def get_user_bound_words(self, user_id: int) -> List[Dict]:
-        return self.bindings.get_user_bound_words(user_id)
+        return self.words.get_user_bound_words(user_id)
     
     # === 设置方法（委托给 SettingsRepository） ===
     def get_setting(self, key: str, default: str = None) -> str:
@@ -89,6 +87,10 @@ class DatabaseManager:
     def get_book_by_id(self, book_id: int) -> Optional[Dict]:
         return self.books.get_book_by_id(book_id)
     
+    def get_book(self, book_id: int) -> Optional[Dict]:
+        """get_book_by_id 的别名，向后兼容"""
+        return self.books.get_book_by_id(book_id)
+    
     def create_book(self, book_name: str) -> int:
         return self.books.create_book(book_name)
     
@@ -114,6 +116,9 @@ class DatabaseManager:
     def get_words(self, page: int = 1, page_size: int = 20, query: str = None, status: int = None, book_id: int = None) -> Tuple[List[Dict], int]:
         return self.words.get_words(page, page_size, query, status, book_id)
     
+    def get_words_by_book(self, book_id: int) -> List[Dict]:
+        return self.words.get_words_by_book(book_id)
+    
     def get_all_records(self) -> List[Dict]:
         return self.words.get_all_records()
     
@@ -123,8 +128,23 @@ class DatabaseManager:
     def has_sent_email_today(self) -> bool:
         return self.words.has_sent_email_today()
     
-    def mark_email_sent_today(self):
-        return self.words.mark_email_sent_today()
+    def mark_email_sent_today(
+        self,
+        status: str = 'success',
+        to_email: str = None,
+        from_email: str = None,
+        duration_ms: int = None,
+        user_id: int = None,
+        provider: str = 'smtp'
+    ):
+        return self.words.mark_email_sent_today(
+            status=status,
+            to_email=to_email,
+            from_email=from_email,
+            duration_ms=duration_ms,
+            user_id=user_id,
+            provider=provider
+        )
     
     # === 迁移方法 ===
     def migrate_v1_to_v2(self, default_words: List[Dict]):

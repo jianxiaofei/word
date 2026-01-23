@@ -1,0 +1,149 @@
+{% extends "layout.html" %}
+
+{% block title %}用户详情 - {{ user.username }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('users.user_list') }}"><i class="bi bi-people-fill"></i> 用户管理</a></li>
+<li class="breadcrumb-item active" aria-current="page">{{ user.username }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- 用户信息卡片 -->
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <div class="avatar mb-3" style="width: 80px; height: 80px; margin: 0 auto; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem; font-weight: bold;">
+                        {{ user.username[0].upper() }}
+                    </div>
+                    <h4>{{ user.username }}</h4>
+                    <div class="mt-3">
+                        <span class="badge bg-{{ 'success' if user.is_active else 'secondary' }} me-2">
+                            {{ '正常' if user.is_active else '已禁用' }}
+                        </span>
+                        {% if user.is_admin %}
+                            <span class="badge bg-danger">管理员</span>
+                        {% else %}
+                            <span class="badge bg-info">普通用户</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">📊 统计信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="text-muted small">总登录次数</div>
+                        <div class="h4">{{ stats.total_logins }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="text-muted small">最后登录</div>
+                        <div>{{ stats.last_login or '-' }}</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="text-muted small">24小时失败登录</div>
+                        <div class="text-{{ 'danger' if stats.failed_logins_24h > 0 else 'muted' }}">
+                            {{ stats.failed_logins_24h }}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-muted small">操作记录数</div>
+                        <div>{{ stats.total_activities }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-body">
+                    <div class="text-muted small">创建时间</div>
+                    <div>{{ user.created_at }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 登录历史和活动日志 -->
+        <div class="col-md-8">
+            <!-- 登录历史 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🔐 最近登录历史</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>IP地址</th>
+                                    <th>状态</th>
+                                    <th>方式</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in login_history %}
+                                <tr>
+                                    <td>{{ record.login_time }}</td>
+                                    <td>{{ record.ip_address or '-' }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if record.status == 'success' else 'danger' }}">
+                                            {{ '成功' if record.status == 'success' else '失败' }}
+                                        </span>
+                                    </td>
+                                    <td>{{ record.login_method }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">暂无登录记录</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 活动日志 -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📝 操作日志</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>操作</th>
+                                    <th>详情</th>
+                                    <th>IP地址</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in activities %}
+                                <tr>
+                                    <td>{{ activity.created_at }}</td>
+                                    <td>
+                                        <code>{{ activity.action }}</code>
+                                    </td>
+                                    <td>{{ activity.details or '-' }}</td>
+                                    <td>{{ activity.ip_address or '-' }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted">暂无操作记录</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

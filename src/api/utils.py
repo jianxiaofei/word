@@ -35,12 +35,8 @@ def admin_required(f):
         if 'user_id' not in session:
             return redirect(url_for('auth.login', next=request.url))
         
-        # 检查是否是管理员
-        user_id = session.get('user_id')
-        db = get_db()
-        user = db.get_user(user_id)
-        
-        if not user or not user.get('is_admin'):
+        # 检查是否是管理员（从session中读取）
+        if not session.get('is_admin'):
             return "权限不足", 403
         
         return f(*args, **kwargs)

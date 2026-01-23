@@ -19,14 +19,114 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: #f0f2f5;
             min-height: 100vh;
+            padding-top: 70px;
+        }
+        .top-navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            z-index: 1030;
+            display: flex;
+            align-items: center;
+            padding: 0 30px;
+        }
+        .top-navbar .logo {
+            width: 220px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .top-navbar .breadcrumb-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+        .top-navbar .breadcrumb {
+            margin-bottom: 0;
+            background: transparent;
+            padding: 0;
+            font-size: 0.9rem;
+        }
+        .top-navbar .breadcrumb-item + .breadcrumb-item::before {
+            color: #999;
+        }
+        .top-navbar .breadcrumb-item a {
+            color: #666;
+            text-decoration: none;
+        }
+        .top-navbar .breadcrumb-item a:hover {
+            color: var(--primary-color);
+        }
+        .top-navbar .breadcrumb-item.active {
+            color: #333;
+        }
+        .top-navbar .user-menu {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-shrink: 0;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #666;
+        }
+        .user-info .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--bg-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .user-info .username {
+            font-weight: 500;
+        }
+        .user-info .badge-admin {
+            background: var(--primary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+        }
+        .btn-logout {
+            padding: 8px 20px;
+            border-radius: 20px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            color: #666;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-logout:hover {
+            background: #fff5f5;
+            border-color: #ff6b6b;
+            color: #ff6b6b;
         }
         .sidebar {
-            height: 100vh;
+            height: calc(100vh - 70px);
             background: white;
             box-shadow: 2px 0 10px rgba(0,0,0,0.05);
             position: fixed;
             left: 0;
-            top: 0;
+            top: 70px;
             width: 250px;
             z-index: 1000;
             padding-top: 20px;
@@ -75,18 +175,53 @@
             .main-content {
                 margin-left: 0;
             }
+            .user-info .username,
+            .user-info .badge-admin {
+                display: none;
+            }
         }
     </style>
     {% block head %}{% endblock %}
 </head>
 <body>
-    <div class="sidebar">
-        <div class="px-4 mb-4">
-            <h4 class="fw-bold text-primary">📚 单词学习</h4>
-            {% if session.get('username') %}
-            <div class="small text-muted">当前用户：{{ session.get('username') }}{% if session.get('is_admin') %}（管理员）{% endif %}</div>
+    <!-- 顶部导航栏 -->
+    <div class="top-navbar">
+        <div class="logo">
+            📚 单词学习
+        </div>
+        <div class="breadcrumb-container">
+            {% if not hide_breadcrumb %}
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('index') }}"><i class="bi bi-house-door"></i> 首页</a></li>
+                    {% block breadcrumb %}{% endblock %}
+                </ol>
+            </nav>
             {% endif %}
         </div>
+        <div class="user-menu">
+            {% if session.get('username') %}
+                <div class="user-info">
+                    <div class="avatar">
+                        {{ session.get('username')[0].upper() }}
+                    </div>
+                    <div>
+                        <div class="username">{{ session.get('username') }}</div>
+                        {% if session.get('is_admin') %}
+                        <span class="badge-admin">管理员</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <a href="{{ url_for('auth.logout') }}" class="btn-logout">
+                    <i class="bi bi-box-arrow-right"></i>
+                    退出
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 侧边栏 -->
+    <div class="sidebar">
         <nav class="nav flex-column">
             <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="{{ url_for('index') }}">
                 <i class="bi bi-bar-chart-fill"></i> 统计概览
@@ -96,22 +231,19 @@
                     <i class="bi bi-book-fill"></i> 词书管理
                 </a>
             {% endif %}
-            <a class="nav-link {% if request.path == '/words' %}active{% endif %}" href="{{ url_for('words.word_list') }}">
-                <i class="bi bi-list-check"></i> 单词列表
-            </a>
             {% if session.get('user_id') %}
                 <a class="nav-link {% if request.path == '/my-words' %}active{% endif %}" href="{{ url_for('words.my_words') }}">
                     <i class="bi bi-heart-fill"></i> 我的单词
                 </a>
             {% endif %}
             {% if session.get('is_admin') %}
+                <a class="nav-link {% if request.path == '/users' %}active{% endif %}" href="{{ url_for('users.user_list') }}">
+                    <i class="bi bi-people-fill"></i> 用户管理
+                </a>
                 <a class="nav-link {% if request.path == '/settings' %}active{% endif %}" href="{{ url_for('settings.settings_page') }}">
                     <i class="bi bi-gear-fill"></i> 系统设置
                 </a>
             {% endif %}
-            <a class="nav-link" href="{{ url_for('auth.logout') }}">
-                <i class="bi bi-box-arrow-right"></i> 退出登录
-            </a>
         </nav>
     </div>
 

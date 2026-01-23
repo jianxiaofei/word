@@ -2,18 +2,15 @@
 
 {% block title %}{{ book.name if book else '单词管理' }} - 单词学习系统{% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('books.book_list') }}"><i class="bi bi-book-fill"></i> 词书管理</a></li>
+<li class="breadcrumb-item active" aria-current="page">{{ book.name if book else '单词管理' }}</li>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb mb-2">
-                    <li class="breadcrumb-item"><a href="{{ url_for('books.book_list') }}">词书管理</a></li>
-                    <li class="breadcrumb-item active">{{ book.name if book else '单词管理' }}</li>
-                </ol>
-            </nav>
-            <h2>📖 {{ book.name if book else '单词管理' }}</h2>
-        </div>
+        <h2>📖 {{ book.name if book else '单词管理' }}</h2>
         <!-- 暂时禁用添加单词功能
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addWordModal">
             <i class="bi bi-plus-lg"></i> 添加单词

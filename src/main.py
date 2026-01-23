@@ -3,6 +3,7 @@
 
 import sys
 import logging
+import time
 from pathlib import Path
 from datetime import datetime
 
@@ -101,18 +102,34 @@ def main():
             password=smtp_password
         )
         
+        start_time = time.perf_counter()
         success = sender.send_words_email(selected_words, progress, template_file, server_url)
+        duration_ms = int((time.perf_counter() - start_time) * 1000)
         
         if success:
             logger.info(f"✓ 邮件发送成功: {email_to}")
             # 记录今日已发送
-            db.mark_email_sent_today()
+            db.mark_email_sent_today(
+                status='success',
+                to_email=email_to,
+                from_email=email_from,
+                duration_ms=duration_ms,
+                provider='smtp'
+            )
             # 注意: 不再自动标记复习完成，由用户通过邮件中的按钮交互反馈
             # 新学的单词已在 select_new_words 中更新状态
             # 复习单词需要用户点击"认识"按钮后才会更新 next_review
             logger.info("✓ 邮件已发送，等待用户反馈")
         else:
             logger.error(f"✗ 邮件发送失败")
+            # 记录失败日志（不影响后续重试）
+            db.mark_email_sent_today(
+                status='failed',
+                to_email=email_to,
+                from_email=email_from,
+                duration_ms=duration_ms,
+                provider='smtp'
+            )
             
             # 发送失败通知
             webhook_url = db.get_setting('webhook_url', '')

@@ -7,7 +7,6 @@ from .user_repository import UserRepository
 from .word_repository import WordRepository
 from .book_repository import BookRepository
 from .settings_repository import SettingsRepository
-from .binding_repository import BindingRepository
 
 __all__ = [
     'DatabaseManager',
@@ -18,5 +17,4 @@ __all__ = [
     'WordRepository',
     'BookRepository',
     'SettingsRepository',
-    'BindingRepository',
 ]

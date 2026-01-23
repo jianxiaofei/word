@@ -37,21 +37,6 @@ class DatabaseManager:
         conn = self._get_conn()
         cursor = conn.cursor()
         
-        # V1 表: 学习记录表 (保留用于迁移)
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS learning_records (
-            id INTEGER PRIMARY KEY,
-            word TEXT NOT NULL,
-            first_learned DATE,
-            last_review DATE,
-            next_review DATE,
-            review_count INTEGER DEFAULT 0,
-            mastery_level INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
-
         # V2 表: 系统设置
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS settings (
@@ -107,18 +92,75 @@ class DatabaseManager:
         )
         ''')
 
-        # --- User <-> Word bindings (e.g., personal word list / ownership) ---
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_word_bindings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            word_id INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(user_id, word_id),
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
-        )
-        ''')
+        # --- User <-> Word learning records ---
+        cursor.execute('PRAGMA table_info(learning_records)')
+        learning_cols = {row[1] for row in cursor.fetchall()}
+
+        if not learning_cols:
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS learning_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                word_id INTEGER NOT NULL,
+                status INTEGER DEFAULT 0,
+                first_learned DATE,
+                last_review DATE,
+                next_review DATE,
+                review_count INTEGER DEFAULT 0,
+                mastery_level INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, word_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+            )
+            ''')
+        elif 'user_id' not in learning_cols or 'word_id' not in learning_cols:
+            cursor.execute('ALTER TABLE learning_records RENAME TO learning_records_old')
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS learning_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                word_id INTEGER NOT NULL,
+                status INTEGER DEFAULT 0,
+                first_learned DATE,
+                last_review DATE,
+                next_review DATE,
+                review_count INTEGER DEFAULT 0,
+                mastery_level INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, word_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
+            )
+            ''')
+
+            cursor.execute('SELECT id FROM users ORDER BY id LIMIT 1')
+            default_user_row = cursor.fetchone()
+            default_user_id = default_user_row[0] if default_user_row else None
+
+            if default_user_id is not None:
+                cursor.execute('PRAGMA table_info(learning_records_old)')
+                old_cols = {row[1] for row in cursor.fetchall()}
+                if 'word' in old_cols:
+                    cursor.execute('''
+                    INSERT OR IGNORE INTO learning_records (
+                        user_id, word_id, status,
+                        first_learned, last_review, next_review,
+                        review_count, mastery_level, created_at, updated_at
+                    )
+                    SELECT ?, w.id, 1,
+                           lr.first_learned, lr.last_review, lr.next_review,
+                           lr.review_count, lr.mastery_level, lr.created_at, lr.updated_at
+                    FROM learning_records_old lr
+                    JOIN words w ON w.word = lr.word
+                    ''', (default_user_id,))
+
+            cursor.execute('DROP TABLE learning_records_old')
+
+        # --- Deprecated table cleanup ---
+        cursor.execute('DROP TABLE IF EXISTS user_word_bindings')
         
         conn.commit()
         conn.close()
@@ -181,13 +223,13 @@ class DatabaseManager:
         conn.close()
         return user
 
-    # --- User-Word binding API ---
+    # --- User-Word learning_records API ---
     def bind_word_to_user(self, user_id: int, word_id: int) -> bool:
         conn = self._get_conn()
         cursor = conn.cursor()
         try:
             cursor.execute(
-                'INSERT OR IGNORE INTO user_word_bindings (user_id, word_id) VALUES (?, ?)',
+                'INSERT OR IGNORE INTO learning_records (user_id, word_id) VALUES (?, ?)',
                 (int(user_id), int(word_id)),
             )
             conn.commit()
@@ -200,7 +242,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         try:
             cursor.execute(
-                'DELETE FROM user_word_bindings WHERE user_id = ? AND word_id = ?',
+                'DELETE FROM learning_records WHERE user_id = ? AND word_id = ?',
                 (int(user_id), int(word_id)),
             )
             conn.commit()
@@ -215,11 +257,11 @@ class DatabaseManager:
             if word_ids:
                 placeholders = ",".join(["?"] * len(word_ids))
                 cursor.execute(
-                    f'SELECT word_id FROM user_word_bindings WHERE user_id = ? AND word_id IN ({placeholders})',
+                    f'SELECT word_id FROM learning_records WHERE user_id = ? AND word_id IN ({placeholders})',
                     [int(user_id)] + [int(w) for w in word_ids],
                 )
             else:
-                cursor.execute('SELECT word_id FROM user_word_bindings WHERE user_id = ?', (int(user_id),))
+                cursor.execute('SELECT word_id FROM learning_records WHERE user_id = ?', (int(user_id),))
 
             rows = cursor.fetchall()
             return {int(r[0]) for r in rows}
@@ -240,9 +282,9 @@ class DatabaseManager:
         cursor.execute(
             f'''
             SELECT COUNT(*)
-            FROM user_word_bindings b
-            JOIN words w ON w.id = b.word_id
-            WHERE b.user_id = ?{where_extra}
+            FROM learning_records lr
+            JOIN words w ON w.id = lr.word_id
+            WHERE lr.user_id = ?{where_extra}
             ''',
             params,
         )
@@ -250,11 +292,13 @@ class DatabaseManager:
 
         cursor.execute(
             f'''
-            SELECT w.*
-            FROM user_word_bindings b
-            JOIN words w ON w.id = b.word_id
-            WHERE b.user_id = ?{where_extra}
-            ORDER BY b.created_at DESC
+            SELECT w.id, w.book_id, w.word, w.phonetic, w.definition,
+                   lr.status, lr.first_learned, lr.last_review, lr.next_review,
+                   lr.review_count, lr.mastery_level, lr.created_at, lr.updated_at
+            FROM learning_records lr
+            JOIN words w ON w.id = lr.word_id
+            WHERE lr.user_id = ?{where_extra}
+            ORDER BY lr.created_at DESC
             LIMIT ? OFFSET ?
             ''',
             params + [page_size, offset],
@@ -272,11 +316,13 @@ class DatabaseManager:
         try:
             cursor.execute(
                 '''
-                SELECT w.*
-                FROM user_word_bindings b
-                JOIN words w ON w.id = b.word_id
-                WHERE b.user_id = ?
-                ORDER BY b.created_at DESC
+                SELECT w.id, w.book_id, w.word, w.phonetic, w.definition,
+                       lr.status, lr.first_learned, lr.last_review, lr.next_review,
+                       lr.review_count, lr.mastery_level, lr.created_at, lr.updated_at
+                FROM learning_records lr
+                JOIN words w ON w.id = lr.word_id
+                WHERE lr.user_id = ?
+                ORDER BY lr.created_at DESC
                 ''',
                 (int(user_id),),
             )

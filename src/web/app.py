@@ -52,6 +52,7 @@ def create_app():
     from api.routes.books import books_bp
     from api.routes.stats import stats_bp
     from api.routes.settings import settings_bp
+    from api.routes.users import users_bp
     
     # RESTful API (Swagger)
     from api.rest_api import api_blueprint
@@ -62,6 +63,7 @@ def create_app():
     app.register_blueprint(books_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(users_bp)
     app.register_blueprint(api_blueprint)  # RESTful API
     
     # 主页路由

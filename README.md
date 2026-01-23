@@ -15,6 +15,8 @@
 - 🔊 **音频发音** - 内嵌有道词典真人发音
 - 📝 **双语例句** - 原文+翻译折叠显示，主动学习
 - 📊 **Web管理面板** - 可视化学习进度和掌握度分布
+- 🔐 **多用户登录/注册** - 支持管理员与普通用户
+- 🧩 **REST API + Swagger** - `/api/v1/doc` 在线文档
 - 🔄 **自动复习提醒** - 根据记忆曲线智能安排复习
 - 📈 **掌握度分级** - L0-L5六级掌握度评估
 - 📚 **多词书支持** - 支持上传自定义词书（TXT/CSV/Excel）
@@ -60,30 +62,39 @@ cd word
 pip install -r requirements.txt
 ```
 
-### 3. 配置邮箱
+### 3. 配置邮箱（推荐使用 .env）
 
-复制配置文件模板：
+在项目根目录创建 `.env` 文件（可直接复制模板）：
+
 ```bash
-cp src/config.example.py src/config.py
+cp .env.example .env
 ```
 
-编辑 `src/config.py`，填入你的邮箱信息：
+然后按需修改：
 
-```python
-# SMTP服务器配置
-SMTP_SERVER = "smtp.qq.com"          # QQ邮箱SMTP服务器
-SMTP_PORT = 587                      # TLS端口
-SMTP_USE_TLS = True                  # 使用TLS加密
-SMTP_USERNAME = "your@qq.com"        # 你的QQ邮箱
-SMTP_PASSWORD = "your_auth_code"     # SMTP授权码（非密码！）
+```dotenv
+# SMTP 配置
+SMTP_SERVER=smtp.qq.com
+SMTP_PORT=587
+SMTP_USE_TLS=true
+EMAIL_FROM=your@qq.com
+SMTP_PASSWORD=your_auth_code
 
-# 邮件配置
-EMAIL_FROM = "your@qq.com"           # 发件人（同上）
-EMAIL_TO = "recipient@outlook.com"   # 收件人邮箱
+# 收件人
+EMAIL_TO=recipient@outlook.com
 
-# 每封邮件单词数（新词+复习词）
-WORDS_PER_EMAIL = 5                  # 3个新词 + 2个复习词
+# 学习配置（可选）
+DAILY_NEW_WORDS=5
+SERVER_URL=
+
+# Web 管理员账号（可选）
+WEB_ADMIN_USER=admin
+WEB_ADMIN_PASSWORD=your_strong_password
+WEB_SECRET_KEY=your_long_random_string
+WEB_ALLOW_REGISTER=true
 ```
+
+配置项会自动从 `.env` 读取（见 `src/config.py`）。`src/config.example.py` 仍可作为参考模板。
 
 > 💡 **获取QQ邮箱SMTP授权码**：登录QQ邮箱 → 设置 → 账户 → POP3/IMAP/SMTP服务 → 开启并获取授权码
 
@@ -93,8 +104,8 @@ WORDS_PER_EMAIL = 5                  # 3个新词 + 2个复习词
 # 测试邮件发送
 python3 src/main.py
 
-# 启动Web管理面板（访问 http://localhost:5000）
-python3 -m flask --app src/web/app run
+# 启动 Web 管理面板（访问 http://localhost:5000）
+python3 -m flask --app src/web/app:app run
 ```
 
 ### 5. 部署到服务器（推荐 Docker）
@@ -102,8 +113,14 @@ python3 -m flask --app src/web/app run
 #### Docker 部署
 
 1. 确保已安装 Docker 和 Docker Compose
-2. 配置 `src/config.py`（参考步骤3）
-3. 启动服务：
+2. 配置 `.env`（参考步骤3）
+3. 准备 Nginx 配置（如首次部署）：
+
+```bash
+mkdir -p nginx
+cp docs/nginx.example.conf nginx/default.conf
+```
+4. 启动服务：
 
 ```bash
 # 使用一键部署脚本（推荐）
@@ -114,21 +131,8 @@ docker-compose up -d
 ```
 
 这将启动三个容器：
-- `word-web`: Web管理面板（由 Nginx 统一入口反代），访问 http://localhost/word-web/
-- `word-scheduler`: 定时任务调度器，每天 07:30 自动发送邮件
-
-#### 传统 Crontab 部署
-
-```bash
-# 使用一键部署脚本（推荐）
-./scripts/deploy_docker.sh
-
-# 或者手动启动
-docker-compose up -d
-```
-
-这将启动三个容器：
-- `word-web`: Web管理面板（由 Nginx 统一入口反代），访问 http://localhost/word-web/
+- `word-nginx`: 反向代理入口，访问 http://localhost/word-web/
+- `word-web`: Web管理面板
 - `word-scheduler`: 定时任务调度器，每天 07:30 自动发送邮件
 
 #### 传统 Crontab 部署
@@ -141,6 +145,8 @@ docker-compose up -d
 ## 🌐 Web管理面板
 
 启动后访问 `http://localhost:5000`（本地）或 `http://your-server/word-web/`（Docker）
+
+REST API 文档：`/api/v1/doc`
 
 ### 登录保护（推荐开启）
 
@@ -161,7 +167,7 @@ WEB_ALLOW_REGISTER=true
 
 - 访问 `/register` 可注册普通用户（若 `WEB_ALLOW_REGISTER=true`）。
 - 普通用户登录后可以在“单词列表”里对单词进行“绑定/取消绑定”，并在“我的单词”查看已绑定单词。
-- 管理员仍通过 `WEB_ADMIN_USER/WEB_ADMIN_PASSWORD` 登录；词书管理、系统设置等页面仅管理员可访问。
+- 管理员仍通过 `WEB_ADMIN_USER/WEB_ADMIN_PASSWORD` 登录，建议用于词书管理与系统设置。
 
 ### 页面功能
 
@@ -170,33 +176,52 @@ WEB_ALLOW_REGISTER=true
 | 📊 统计面板 | `/` | 学习进度、掌握度分布、趋势图（Docker 部署时外部访问为 `/word-web/`） |
 | 📚 词书管理 | `/books` | 上传/切换/管理词书 |
 | 📝 单词管理 | `/words` | 查看所有单词学习状态 |
+| 🧾 我的单词 | `/words/my` | 登录用户的单词与筛选 |
 | ⚙️ 系统设置 | `/settings` | 配置邮箱、每日单词数等 |
+| ❤️ 健康检查 | `/health` | 健康检查接口 |
 
 ## 📁 项目结构
-
 ```
 word/
 ├── src/                              # 源代码
-│   ├── config.example.py             # 配置文件模板
-│   ├── config.py                     # 配置文件（需自行创建）
+│   ├── config.example.py             # 配置模板
+│   ├── config.py                     # 配置入口（支持 .env）
 │   ├── main.py                       # 主程序入口
 │   │
 │   ├── core/                         # 核心功能模块
-│   │   ├── database.py               # SQLite数据库管理
+│   │   ├── database.py               # 向后兼容层
+│   │   ├── db/                       # Repository 结构
+│   │   │   ├── manager.py            # DatabaseManager 入口
+│   │   │   ├── connection.py         # 连接/默认路径
+│   │   │   ├── schema.py             # 表结构初始化
+│   │   │   └── *_repository.py       # 业务仓储
 │   │   ├── word_parser.py            # 词库解析（TXT/CSV/Excel）
 │   │   ├── word_selector.py          # 艾宾浩斯选择器
 │   │   ├── example_fetcher.py        # 例句/图片/音频获取
 │   │   ├── email_sender.py           # 邮件发送
 │   │   └── notifier.py               # 通知推送
 │   │
+│   ├── api/                          # Web API
+│   │   ├── routes/                   # 页面路由
+│   │   ├── rest_api.py               # Swagger/REST API
+│   │   └── endpoints.py              # REST 端点
+│   │
+│   ├── services/                     # 业务服务层
+│   │   ├── auth_service.py
+│   │   ├── word_service.py
+│   │   └── stats_service.py
+│   │
 │   ├── web/                          # Web管理服务
-│   │   ├── app.py                    # Flask应用
+│   │   ├── app.py                    # Flask应用（App Factory）
 │   │   └── templates/                # HTML模板
 │   │       ├── layout.html           # 布局模板
 │   │       ├── statistics.html       # 统计面板
 │   │       ├── books.html            # 词书管理
 │   │       ├── words.html            # 单词管理
-│   │       └── settings.html         # 系统设置
+│   │       ├── my_words.html         # 我的单词
+│   │       ├── settings.html         # 系统设置
+│   │       ├── login.html            # 登录
+│   │       └── register.html         # 注册
 │   │
 │   └── data/                         # 数据文件
 │       ├── CET4_edited.txt           # 默认词库（CET4）
@@ -219,6 +244,8 @@ word/
 │
 ├── docker-compose.yml                # Docker编排配置
 ├── Dockerfile                        # Docker镜像构建
+├── nginx/                            # Nginx 配置（首次部署需创建）
+│   └── default.conf                  # 从 docs/nginx.example.conf 复制
 ├── requirements.txt                  # Python依赖
 └── README.md                         # 项目说明（本文件）
 ```
@@ -274,7 +301,9 @@ crontab -e
 |------|------|
 | `books` | 词书管理 |
 | `words` | 单词数据及学习记录 |
-| `settings` | 系统设置 |
+| `users` | 用户信息 |
+| `user_word_bindings` | 用户单词绑定 |
+| `settings` | 系统/用户设置（前缀式存储） |
 | `learning_records` | 旧版学习记录（兼容） |
 
 ### 单词记录字段
@@ -295,44 +324,46 @@ crontab -e
 }
 ```
 
-## 🔌 API接口
+## 🔌 REST API
 
-Web服务提供以下API接口：
+Web 服务提供 REST API（Swagger 文档位于 `/api/v1/doc`）：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/stats` | 获取统计数据 |
-| GET | `/api/words` | 获取所有单词 |
-| POST | `/api/settings` | 更新设置 |
-| POST | `/api/books/upload` | 上传新词书 |
-| POST | `/api/books/activate` | 切换当前词书 |
-| POST | `/api/send-email` | 手动发送邮件 |
-| POST | `/api/test-email` | 发送测试邮件 |
+| POST | `/api/v1/auth/login` | 登录 |
+| POST | `/api/v1/auth/register` | 注册 |
+| POST | `/api/v1/auth/logout` | 登出 |
+| GET | `/api/v1/auth/me` | 当前用户 |
+| GET | `/api/v1/words` | 单词列表（支持 `book_id`/`status`） |
+| GET | `/api/v1/words/<id>` | 单词详情 |
+| POST | `/api/v1/words/<id>/mark` | 标记单词（`action=known/unknown/skip`） |
+| GET | `/api/v1/books` | 词库列表 |
+| GET | `/api/v1/books/<id>` | 词库详情 |
+| GET | `/api/v1/stats/user` | 用户统计 |
+| GET | `/api/v1/stats/progress` | 学习进度（`days`） |
+| GET | `/api/v1/stats/distribution` | 单词分布 |
 
-### 示例：获取统计数据
+### 示例：登录后获取统计数据
 ```bash
-# 获取统计数据
-curl http://localhost:8080/api/stats
+# 登录（会写入 session cookie）
+curl -i -c cookies.txt -X POST http://localhost:5000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"your_password"}'
 
-# 返回示例
-{
-  "total_learned": 85,
-  "total_reviews": 12,
-  "mastery_rate": 15.3,
-  "progress": 1.87,
-  "streak_days": 5,
-  "today_review_count": 2
-}
+# 获取统计数据
+curl -b cookies.txt http://localhost:5000/api/v1/stats/user
 ```
 
 ## 🛠️ 技术栈
 
 - **Python 3.9+** - 主语言
 - **Flask** - Web框架
+- **Flask-RESTX** - REST API / Swagger
 - **SQLite** - 数据库存储
 - **Jinja2** - 模板引擎
 - **Requests** - HTTP客户端
 - **Pandas** - 数据处理（词书解析）
+- **python-dotenv** - 环境变量加载
 - **Docker** - 容器化部署
 - **SMTP** - 邮件发送协议
 
