@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>易错单词分析 - 单词学习系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .difficulty-badge {
+            font-size: 0.85rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .word-card {
+            border-left: 4px solid #e9ecef;
+            transition: all 0.3s;
+        }
+        .word-card:hover {
+            border-left-color: #0d6efd;
+            box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1);
+        }
+        .word-card.difficulty-hard { border-left-color: #dc3545; }
+        .word-card.difficulty-medium { border-left-color: #ffc107; }
+        .word-card.difficulty-normal { border-left-color: #198754; }
+    </style>
+</head>
+<body>
+    {% extends "layout.html" %}
+    
+    {% block title %}易错单词分析{% endblock %}
+    
+    {% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="/stats">统计</a></li>
+    <li class="breadcrumb-item active">易错单词</li>
+    {% endblock %}
+    
+    {% block content %}
+    <div class="container-fluid">
+        <h2 class="mb-4">📊 易错单词分析</h2>
+        
+        <!-- 学习效率报告 -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">🎯 学习效率报告</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <h6 class="text-muted">效率评级</h6>
+                                <h3>{{ efficiency.efficiency_rating }}</h3>
+                            </div>
+                            <div class="col-md-3">
+                                <h6 class="text-muted">总错误次数</h6>
+                                <h3>{{ efficiency.statistics.total_mistakes }}</h3>
+                            </div>
+                            <div class="col-md-3">
+                                <h6 class="text-muted">平均错误次数</h6>
+                                <h3>{{ efficiency.statistics.avg_mistakes }}</h3>
+                            </div>
+                            <div class="col-md-3">
+                                <h6 class="text-muted">困难单词数</h6>
+                                <h3 class="text-danger">{{ efficiency.statistics.difficult_words_count }}</h3>
+                            </div>
+                        </div>
+                        <hr>
+                        <p class="mb-0">💡 <strong>建议：</strong>{{ efficiency.efficiency_comment }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 学习建议 -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">💡 学习建议</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="mb-0">
+                            {% for rec in efficiency.recommendations %}
+                            <li>{{ rec }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 易错单词列表 -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">❌ 易错单词排行榜（Top {{ analysis.total_count }}）</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if analysis.difficult_words %}
+                        <div class="row">
+                            {% for word in analysis.difficult_words %}
+                            <div class="col-md-6 mb-3">
+                                <div class="card word-card difficulty-{% if word.difficulty_level == '困难' %}hard{% elif word.difficulty_level == '中等' %}medium{% else %}normal{% endif %}">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h5 class="card-title mb-0">{{ word.word }}</h5>
+                                            <span class="badge {% if word.difficulty_level == '困难' %}bg-danger{% elif word.difficulty_level == '中等' %}bg-warning{% else %}bg-success{% endif %} difficulty-badge">
+                                                {{ word.difficulty_level }}
+                                            </span>
+                                        </div>
+                                        <p class="text-muted mb-2">{{ word.phonetic }}</p>
+                                        <p class="mb-2">{{ word.definition }}</p>
+                                        <hr>
+                                        <div class="row text-center">
+                                            <div class="col-4">
+                                                <small class="text-muted">错误次数</small><br>
+                                                <strong class="text-danger">{{ word.unknown_count }}</strong>
+                                            </div>
+                                            <div class="col-4">
+                                                <small class="text-muted">连续正确</small><br>
+                                                <strong class="text-success">{{ word.consecutive_correct }}</strong>
+                                            </div>
+                                            <div class="col-4">
+                                                <small class="text-muted">稳定性</small><br>
+                                                <strong>{{ word.stability_score }}</strong>
+                                            </div>
+                                        </div>
+                                        <div class="mt-2">
+                                            <small class="text-muted">💡 {{ word.suggestion }}</small>
+                                        </div>
+                                        {% if word.last_mistake_date %}
+                                        <div class="mt-1">
+                                            <small class="text-muted">最近错误: {{ word.last_mistake_date }}</small>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 暂无易错单词数据，继续努力学习吧！
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+</body>
+</html>

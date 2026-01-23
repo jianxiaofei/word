@@ -98,23 +98,66 @@ def main():
             word_info['audio_base64'] = data['audio_base64']
             logger.debug(f"数据: {word_info['word']} -> 例句:{bool(data['example_en'])} 图片:{bool(data['image_base64'])} 音频:{bool(data['audio_base64'])}")
         
-        # 3. 发送邮件
-        logger.info("正在发送邮件...")
-        template_file = str(Path(__file__).resolve().parent / 'data' / 'email_template.html')
-        sender = EmailSender(
-            smtp_server, smtp_port, email_from, email_to,
-            use_tls=config.SMTP_USE_TLS, # TLS设置暂时还用config的，或者也可以加到DB
-            username=email_from, # 通常用户名就是发件人邮箱
-            password=smtp_password
-        )
+        # 3. 发送通知（支持多渠道）
+        logger.info("正在发送学习通知...")
         
+        # 创建通知管理器
+        from core.notifications import NotificationManager, EmailChannel, TelegramChannel, WeChatChannel
+        
+        notifier = NotificationManager()
+        
+        # 添加邮件渠道（默认启用）
+        email_config = {
+            'enabled': True,
+            'smtp_server': smtp_server,
+            'smtp_port': smtp_port,
+            'use_tls': config.SMTP_USE_TLS,
+            'email_from': email_from,
+            'email_to': email_to,
+            'password': smtp_password,
+            'server_url': server_url
+        }
+        notifier.add_channel(EmailChannel(email_config))
+        
+        # 添加 Telegram 渠道（如果已配置）
+        telegram_token = db.get_setting('telegram_bot_token')
+        telegram_chat_id = db.get_setting('telegram_chat_id')
+        if telegram_token and telegram_chat_id:
+            telegram_config = {
+                'enabled': True,
+                'bot_token': telegram_token,
+                'chat_id': telegram_chat_id
+            }
+            notifier.add_channel(TelegramChannel(telegram_config))
+        
+        # 添加微信渠道（如果已配置）
+        wechat_app_id = db.get_setting('wechat_app_id')
+        wechat_secret = db.get_setting('wechat_app_secret')
+        wechat_template_id = db.get_setting('wechat_template_id')
+        wechat_openid = db.get_setting('wechat_openid')
+        if all([wechat_app_id, wechat_secret, wechat_template_id, wechat_openid]):
+            wechat_config = {
+                'enabled': True,
+                'app_id': wechat_app_id,
+                'app_secret': wechat_secret,
+                'template_id': wechat_template_id,
+                'openid': wechat_openid,
+                'url': server_url
+            }
+            notifier.add_channel(WeChatChannel(wechat_config))
+        
+        # 并发发送到所有渠道
         start_time = time.perf_counter()
-        success = sender.send_words_email(selected_words, progress, template_file, server_url)
+        results = notifier.send_daily_words(
+            words=selected_words,
+            progress=progress,
+            date=datetime.now().strftime('%Y-%m-%d')
+        )
         duration_ms = int((time.perf_counter() - start_time) * 1000)
         
-        if success:
+        # 记录发送结果
+        if results.get('email', False):
             logger.info(f"✓ 邮件发送成功: {email_to}")
-            # 记录今日已发送
             db.mark_email_sent_today(
                 status='success',
                 to_email=email_to,
@@ -122,13 +165,10 @@ def main():
                 duration_ms=duration_ms,
                 provider='smtp'
             )
-            # 混合方案：复习单词已标记sent_date，等待用户反馈或24小时自动标记
-            # 新学的单词已在 select_new_words 中更新状态
             logger.info("✓ 邮件已发送，复习单词等待用户反馈（24小时内）")
             logger.info(f"  提示：请访问 {server_url} 或点击邮件中的按钮反馈学习效果")
         else:
             logger.error(f"✗ 邮件发送失败")
-            # 记录失败日志（不影响后续重试）
             db.mark_email_sent_today(
                 status='failed',
                 to_email=email_to,
@@ -136,8 +176,15 @@ def main():
                 duration_ms=duration_ms,
                 provider='smtp'
             )
-            
-            # 发送失败通知
+        
+        # 显示其他渠道的发送结果
+        for channel, success in results.items():
+            if channel != 'email':
+                status = '✓ 成功' if success else '✗ 失败'
+                logger.info(f"{status} {channel.capitalize()} 通知发送")
+        
+        # 如果所有渠道都失败，发送失败通知
+        if not any(results.values()):
             webhook_url = db.get_setting('webhook_url', '')
             if webhook_url:
                 notifier = Notifier(webhook_url)

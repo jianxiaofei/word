@@ -424,3 +424,72 @@ class WordRepository:
         
         conn.commit()
         conn.close()
+    
+    def get_difficult_words(self, limit: int = 50, min_unknown_count: int = 2) -> List[Dict]:
+        """
+        获取易错单词（按错误次数降序）
+        
+        Args:
+            limit: 返回数量限制
+            min_unknown_count: 最小错误次数，默认至少错2次
+            
+        Returns:
+            易错单词列表，包含完整单词信息和统计数据
+        """
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+        SELECT * FROM words 
+        WHERE status = 1 
+        AND unknown_count >= ?
+        ORDER BY unknown_count DESC, last_mistake_date DESC
+        LIMIT ?
+        ''', (min_unknown_count, limit))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return []
+        
+        cols = [d[0] for d in cursor.description]
+        return [dict(zip(cols, row)) for row in rows]
+    
+    def get_mistake_statistics(self) -> Dict:
+        """
+        获取学习效果统计数据
+        
+        Returns:
+            统计信息字典，包括：
+            - total_mistakes: 总错误次数
+            - words_with_mistakes: 有错误记录的单词数
+            - avg_mistakes: 平均错误次数
+            - difficult_words_count: 困难单词数（错误≥3次）
+        """
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        # 统计总错误次数和单词数
+        cursor.execute('''
+        SELECT 
+            COALESCE(SUM(unknown_count), 0) as total_mistakes,
+            COUNT(CASE WHEN unknown_count > 0 THEN 1 END) as words_with_mistakes,
+            COUNT(CASE WHEN unknown_count >= 3 THEN 1 END) as difficult_words_count
+        FROM words 
+        WHERE status = 1
+        ''')
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        total_mistakes, words_with_mistakes, difficult_words_count = result
+        
+        avg_mistakes = total_mistakes / words_with_mistakes if words_with_mistakes > 0 else 0
+        
+        return {
+            'total_mistakes': total_mistakes,
+            'words_with_mistakes': words_with_mistakes,
+            'avg_mistakes': round(avg_mistakes, 2),
+            'difficult_words_count': difficult_words_count
+        }

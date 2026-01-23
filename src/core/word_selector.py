@@ -60,16 +60,49 @@ class WordSelectorV2:
     
     def select_words(self, new_count: int = 5, review_count: int = 5) -> Tuple[List[Dict], List[Dict]]:
         """
-        选择单词：新单词 + 复习单词
+        选择单词：新单词 + 复习单词（带智能累积控制）
         
         Args:
             new_count: 新单词数量，默认5个
             review_count: 复习单词数量，默认5个（从所有到期单词中随机选择）
+            
+        智能累积控制规则：
+        - 到期单词 ≤ 30：正常学习
+        - 到期单词 31-50：减少新词，增加复习
+        - 到期单词 51-100：暂停新词学习
+        - 到期单词 > 100：集中复习模式
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # 1. 获取所有到期的复习单词
         all_due_words = self.get_due_review_words()
+        due_count = len(all_due_words)
         
-        # 2. 如果到期单词超过限制，随机选择 review_count 个
+        # 2. 【智能累积控制】根据到期单词数量动态调整学习策略
+        original_new = new_count
+        original_review = review_count
+        
+        if due_count > 100:
+            # 严重累积：集中复习，暂停新词
+            new_count = 0
+            review_count = 20
+            logger.warning(f"⚠️ 累积过多({due_count}个到期)！暂停新词，集中复习20个")
+        elif due_count > 50:
+            # 中度累积：暂停新词，增加复习
+            new_count = 0
+            review_count = 15
+            logger.info(f"📚 到期单词较多({due_count}个)，暂停新词，增加复习")
+        elif due_count > 30:
+            # 轻度累积：减少新词，保持复习
+            new_count = max(2, new_count - 2)
+            review_count = min(10, due_count)
+            logger.info(f"📖 到期单词{due_count}个，减少新词学习")
+        
+        if new_count != original_new or review_count != original_review:
+            logger.info(f"   调整策略: 新词{original_new}→{new_count}, 复习{original_review}→{review_count}")
+        
+        # 3. 从到期单词中选择复习词
         if len(all_due_words) > review_count:
             review_words = random.sample(all_due_words, review_count)
         else:
@@ -78,10 +111,10 @@ class WordSelectorV2:
         for w in review_words:
             w['is_review'] = True
             
-        # 3. 获取新单词
-        new_words = self.select_new_words(new_count)
+        # 4. 获取新单词（如果新词数量>0）
+        new_words = self.select_new_words(new_count) if new_count > 0 else []
         
-        # 4. 标记这些单词已发送（用于24小时自动标记）
+        # 5. 标记这些单词已发送（用于24小时自动标记）
         today = datetime.now().date().isoformat()
         review_word_ids = [w['id'] for w in review_words]
         if review_word_ids:
@@ -111,11 +144,15 @@ class WordSelectorV2:
             # 已完成所有复习，30天后再复习
             next_review = (today + timedelta(days=30)).isoformat()
             
+        # 更新连续正确次数
+        consecutive_correct = record.get('consecutive_correct', 0) + 1
+        
         self.db.update_word_progress(word_id, {
             'last_review': today.isoformat(),
             'next_review': next_review,
             'review_count': new_review_count,
-            'mastery_level': new_mastery_level
+            'mastery_level': new_mastery_level,
+            'consecutive_correct': consecutive_correct
         })
         
         # 清除发送标记（表示用户已反馈）
@@ -124,6 +161,7 @@ class WordSelectorV2:
     def mark_unknown(self, word_id: int):
         """
         标记单词不认识，重置掌握等级 (V2)
+        同时记录错误次数，用于学习效果分析
         """
         record = self.db.get_word_by_id(word_id)
         if not record:
@@ -137,12 +175,18 @@ class WordSelectorV2:
         
         next_interval = self.REVIEW_INTERVALS[0] # 1天后
         next_review = (today + timedelta(days=next_interval)).isoformat()
+        
+        # 更新错误计数和连续正确计数
+        unknown_count = record.get('unknown_count', 0) + 1
             
         self.db.update_word_progress(word_id, {
             'last_review': today.isoformat(),
             'next_review': next_review,
             'review_count': record['review_count'] + 1, # 增加一次复习记录
-            'mastery_level': new_mastery_level
+            'mastery_level': new_mastery_level,
+            'unknown_count': unknown_count,
+            'last_mistake_date': today.isoformat(),
+            'consecutive_correct': 0  # 重置连续正确次数
         })
         
         # 清除发送标记（表示用户已反馈）

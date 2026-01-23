@@ -57,6 +57,14 @@ def init_database_schema(conn: sqlite3.Connection):
     word_cols = {row[1] for row in cursor.fetchall()}
     if 'sent_date' not in word_cols:
         cursor.execute('ALTER TABLE words ADD COLUMN sent_date DATE')
+    
+    # 添加学习效果分析字段（如果不存在）
+    if 'unknown_count' not in word_cols:
+        cursor.execute('ALTER TABLE words ADD COLUMN unknown_count INTEGER DEFAULT 0')
+    if 'last_mistake_date' not in word_cols:
+        cursor.execute('ALTER TABLE words ADD COLUMN last_mistake_date DATE')
+    if 'consecutive_correct' not in word_cols:
+        cursor.execute('ALTER TABLE words ADD COLUMN consecutive_correct INTEGER DEFAULT 0')
 
     # --- Auth: Users ---
     cursor.execute('''

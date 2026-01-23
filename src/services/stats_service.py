@@ -106,3 +106,90 @@ class StatsService:
             'by_book': dict(book_stats),
             'by_status': dict(status_stats)
         }
+    
+    def get_difficult_words_analysis(self, limit: int = 50) -> Dict:
+        """
+        获取易错单词分析
+        
+        Args:
+            limit: 返回的易错单词数量限制
+            
+        Returns:
+            包含易错单词列表和统计信息的字典
+        """
+        # 获取易错单词列表
+        difficult_words = self.db.words.get_difficult_words(limit=limit, min_unknown_count=2)
+        
+        # 获取统计信息
+        stats = self.db.words.get_mistake_statistics()
+        
+        # 为每个单词添加建议
+        for word in difficult_words:
+            unknown_count = word.get('unknown_count', 0)
+            consecutive_correct = word.get('consecutive_correct', 0)
+            
+            if unknown_count >= 5:
+                word['difficulty_level'] = '困难'
+                word['suggestion'] = '需要重点复习，建议每天复习'
+            elif unknown_count >= 3:
+                word['difficulty_level'] = '中等'
+                word['suggestion'] = '需要加强记忆，增加复习频率'
+            else:
+                word['difficulty_level'] = '一般'
+                word['suggestion'] = '继续保持复习'
+            
+            # 计算记忆稳定性（连续正确次数/总错误次数）
+            if unknown_count > 0:
+                word['stability_score'] = round(consecutive_correct / unknown_count, 2)
+            else:
+                word['stability_score'] = 1.0
+        
+        return {
+            'difficult_words': difficult_words,
+            'statistics': stats,
+            'total_count': len(difficult_words),
+            'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+    
+    def get_learning_efficiency_report(self) -> Dict:
+        """
+        生成学习效率报告
+        
+        Returns:
+            包含学习效率分析的报告
+        """
+        stats = self.db.words.get_mistake_statistics()
+        difficult_words = self.db.words.get_difficult_words(limit=10, min_unknown_count=3)
+        
+        # 计算学习效率指标
+        total_mistakes = stats['total_mistakes']
+        words_with_mistakes = stats['words_with_mistakes']
+        avg_mistakes = stats['avg_mistakes']
+        
+        # 效率评级
+        if avg_mistakes < 2:
+            efficiency_rating = '优秀'
+            efficiency_comment = '学习效率很高，继续保持！'
+        elif avg_mistakes < 3:
+            efficiency_rating = '良好'
+            efficiency_comment = '学习效率不错，可以适当增加学习量'
+        elif avg_mistakes < 4:
+            efficiency_rating = '一般'
+            efficiency_comment = '建议加强复习，特别关注易错单词'
+        else:
+            efficiency_rating = '需改进'
+            efficiency_comment = '建议放慢学习节奏，重点复习已学单词'
+        
+        return {
+            'statistics': stats,
+            'efficiency_rating': efficiency_rating,
+            'efficiency_comment': efficiency_comment,
+            'top_difficult_words': difficult_words[:5],
+            'recommendations': [
+                '重点复习错误次数≥3的单词',
+                '每天复习时优先处理易错单词',
+                '可以制作专门的易错单词本',
+                '适当降低新词学习速度，确保已学单词掌握牢固'
+            ],
+            'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
