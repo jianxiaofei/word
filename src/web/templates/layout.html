@@ -92,24 +92,24 @@
                 <i class="bi bi-bar-chart-fill"></i> 统计概览
             </a>
             {% if session.get('is_admin') %}
-                <a class="nav-link {% if request.path == '/books' %}active{% endif %}" href="{{ url_for('books_page') }}">
+                <a class="nav-link {% if request.path == '/books' %}active{% endif %}" href="{{ url_for('books.book_list') }}">
                     <i class="bi bi-book-fill"></i> 词书管理
                 </a>
             {% endif %}
-            <a class="nav-link {% if request.path == '/words' %}active{% endif %}" href="{{ url_for('words_page') }}">
+            <a class="nav-link {% if request.path == '/words' %}active{% endif %}" href="{{ url_for('words.word_list') }}">
                 <i class="bi bi-list-check"></i> 单词列表
             </a>
             {% if session.get('user_id') %}
-                <a class="nav-link {% if request.path == '/my-words' %}active{% endif %}" href="{{ url_for('my_words_page') }}">
+                <a class="nav-link {% if request.path == '/my-words' %}active{% endif %}" href="{{ url_for('words.my_words') }}">
                     <i class="bi bi-heart-fill"></i> 我的单词
                 </a>
             {% endif %}
             {% if session.get('is_admin') %}
-                <a class="nav-link {% if request.path == '/settings' %}active{% endif %}" href="{{ url_for('settings_page') }}">
+                <a class="nav-link {% if request.path == '/settings' %}active{% endif %}" href="{{ url_for('settings.settings_page') }}">
                     <i class="bi bi-gear-fill"></i> 系统设置
                 </a>
             {% endif %}
-            <a class="nav-link" href="{{ url_for('logout') }}">
+            <a class="nav-link" href="{{ url_for('auth.logout') }}">
                 <i class="bi bi-box-arrow-right"></i> 退出登录
             </a>
         </nav>

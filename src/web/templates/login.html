@@ -19,9 +19,15 @@
 
     <div class="card">
       <div class="card-body p-4">
-        {% if error %}
-          <div class="alert alert-danger" role="alert">{{ error }}</div>
-        {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
 
         <form method="POST">
           <div class="mb-3">
@@ -37,11 +43,9 @@
           <button class="btn btn-primary w-100" type="submit">登录</button>
         </form>
 
-        {% if allow_register %}
         <div class="text-center mt-3">
-          <a href="{{ url_for('register') }}">没有账号？去注册</a>
+          <a href="{{ url_for('auth.register') }}">没有账号？去注册</a>
         </div>
-        {% endif %}
 
         <hr class="my-4" />
         <div class="small text-muted">

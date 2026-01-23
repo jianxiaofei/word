@@ -6,22 +6,48 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h2>❤️ 我的单词</h2>
-            <div class="text-muted small">这里展示你绑定/收藏的单词</div>
+            <h2>❤️ 我的单词 
+                {% if filter_type %}
+                <span class="badge bg-primary">{{ filter_title }}</span>
+                {% endif %}
+            </h2>
+            <div class="text-muted small">
+                {% if total_count is defined %}
+                共 {{ total_count }} 个单词
+                {% else %}
+                这里展示你绑定/收藏的单词
+                {% endif %}
+            </div>
         </div>
-        <a class="btn btn-outline-primary" href="{{ url_for('words_page') }}">
-            <i class="bi bi-list-check"></i> 返回单词列表
-        </a>
+        <div>
+            <a class="btn btn-outline-secondary me-2" href="{{ url_for('words.my_words') }}">
+                <i class="bi bi-arrow-clockwise"></i> 查看全部
+            </a>
+            <a class="btn btn-outline-primary" href="{{ url_for('words.word_list') }}">
+                <i class="bi bi-list-check"></i> 返回单词列表
+            </a>
+        </div>
     </div>
 
     <div class="card mb-4">
         <div class="card-body">
-            <form class="row g-3" method="GET" action="{{ url_for('my_words_page') }}">
+            <form class="row g-3" method="GET" action="{{ url_for('words.my_words') }}">
+                {% if filter_type %}
+                <input type="hidden" name="filter" value="{{ filter_type }}">
+                {% endif %}
                 <div class="col-md-4">
                     <input type="text" class="form-control" name="q" placeholder="搜索单词..." value="{{ request.args.get('q', '') }}">
                 </div>
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-outline-primary w-100">搜索</button>
+                </div>
+                <div class="col-md-6 text-end">
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('words.my_words', filter='due_today') }}" class="btn btn-sm {% if filter_type == 'due_today' %}btn-primary{% else %}btn-outline-secondary{% endif %}">📅 今日待复习</a>
+                        <a href="{{ url_for('words.my_words', filter='learning') }}" class="btn btn-sm {% if filter_type == 'learning' %}btn-primary{% else %}btn-outline-secondary{% endif %}">📖 学习中</a>
+                        <a href="{{ url_for('words.my_words', filter='mastered') }}" class="btn btn-sm {% if filter_type == 'mastered' %}btn-primary{% else %}btn-outline-secondary{% endif %}">✅ 已掌握</a>
+                        <a href="{{ url_for('words.my_words') }}" class="btn btn-sm {% if not filter_type %}btn-primary{% else %}btn-outline-secondary{% endif %}">📚 全部</a>
+                    </div>
                 </div>
             </form>
         </div>
@@ -75,13 +101,13 @@
             <nav>
                 <ul class="pagination mb-0">
                     <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('my_words_page', page=current_page-1, q=request.args.get('q', '')) }}">上一页</a>
+                        <a class="page-link" href="{{ url_for('words.my_words', page=current_page-1, q=request.args.get('q', '')) }}">上一页</a>
                     </li>
                     <li class="page-item disabled">
                         <span class="page-link">{{ current_page }} / {{ total_pages }}</span>
                     </li>
                     <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('my_words_page', page=current_page+1, q=request.args.get('q', '')) }}">下一页</a>
+                        <a class="page-link" href="{{ url_for('words.my_words', page=current_page+1, q=request.args.get('q', '')) }}">下一页</a>
                     </li>
                 </ul>
             </nav>

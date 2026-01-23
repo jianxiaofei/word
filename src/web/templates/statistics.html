@@ -11,12 +11,14 @@
 
     <div class="row mb-4">
         <div class="col-md-2 col-sm-4 mb-3">
-            <div class="card stat-card h-100">
-                <div class="card-body text-center">
-                    <div class="label">📖 已学单词</div>
-                    <div class="value">{{ stats.total_learned }}<span class="unit">/ {{ stats.total }}</span></div>
+            <a href="{{ url_for('words.my_words', filter='learning') }}" class="text-decoration-none">
+                <div class="card stat-card h-100 stat-card-clickable">
+                    <div class="card-body text-center">
+                        <div class="label">📖 已学单词</div>
+                        <div class="value">{{ stats.total_learned }}<span class="unit">/ {{ stats.total }}</span></div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-2 col-sm-4 mb-3">
             <div class="card stat-card h-100">
@@ -27,20 +29,24 @@
             </div>
         </div>
         <div class="col-md-2 col-sm-4 mb-3">
-            <div class="card stat-card h-100">
-                <div class="card-body text-center">
-                    <div class="label">✅ 掌握率</div>
-                    <div class="value">{{ stats.mastery_rate }}<span class="unit">%</span></div>
+            <a href="{{ url_for('words.my_words', filter='mastered') }}" class="text-decoration-none">
+                <div class="card stat-card h-100 stat-card-clickable">
+                    <div class="card-body text-center">
+                        <div class="label">✅ 已掌握</div>
+                        <div class="value">{{ stats.mastery_rate }}<span class="unit">%</span></div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-2 col-sm-4 mb-3">
-            <div class="card stat-card h-100">
-                <div class="card-body text-center">
-                    <div class="label">📈 学习进度</div>
-                    <div class="value">{{ stats.progress }}<span class="unit">%</span></div>
+            <a href="{{ url_for('words.my_words') }}" class="text-decoration-none">
+                <div class="card stat-card h-100 stat-card-clickable">
+                    <div class="card-body text-center">
+                        <div class="label">📈 学习进度</div>
+                        <div class="value">{{ stats.progress }}<span class="unit">%</span></div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
         <div class="col-md-2 col-sm-4 mb-3">
             <div class="card stat-card h-100">
@@ -51,12 +57,14 @@
             </div>
         </div>
         <div class="col-md-2 col-sm-4 mb-3">
-            <div class="card stat-card h-100">
-                <div class="card-body text-center">
-                    <div class="label">📅 今日待复习</div>
-                    <div class="value">{{ stats.today_review_count }}<span class="unit">个</span></div>
+            <a href="{{ url_for('words.my_words', filter='due_today') }}" class="text-decoration-none">
+                <div class="card stat-card h-100 stat-card-clickable">
+                    <div class="card-body text-center">
+                        <div class="label">📅 今日待复习</div>
+                        <div class="value">{{ stats.today_review_count }}<span class="unit">个</span></div>
+                    </div>
                 </div>
-            </div>
+            </a>
         </div>
     </div>
 
@@ -115,6 +123,19 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .stat-card-clickable {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+    .stat-card-clickable:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}

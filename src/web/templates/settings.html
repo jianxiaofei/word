@@ -82,9 +82,9 @@
 
 {% block scripts %}
 <script>
-const API_UPDATE_SETTINGS_URL = "{{ url_for('update_settings') }}";
-const API_TEST_EMAIL_URL = "{{ url_for('send_test_email') }}";
-const API_TEST_WEBHOOK_URL = "{{ url_for('send_test_webhook') }}";
+const API_UPDATE_SETTINGS_URL = "{{ url_for('settings.update_settings') }}";
+const API_TEST_EMAIL_URL = "{{ url_for('settings.send_test_email') }}";
+const API_TEST_WEBHOOK_URL = "{{ url_for('settings.send_test_webhook') }}";
 
 // Email List Management
 const emailContainer = document.getElementById('email-list-container');

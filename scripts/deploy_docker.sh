@@ -94,6 +94,7 @@ if command -v rsync &> /dev/null; then
         --exclude 'src/data/*.db' \
         --exclude 'src/data/*.db-wal' \
         --exclude 'src/data/*.db-shm' \
+        --exclude 'nginx/default.conf' \
         "$PROJECT_ROOT/" "$SERVER_USER@$SERVER_IP:$REMOTE_DIR/"
 
     if [[ "$SYNC_DATA" -eq 1 ]]; then

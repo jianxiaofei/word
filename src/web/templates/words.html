@@ -8,20 +8,22 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-2">
-                    <li class="breadcrumb-item"><a href="{{ url_for('books_page') }}">词书管理</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('books.book_list') }}">词书管理</a></li>
                     <li class="breadcrumb-item active">{{ book.name if book else '单词管理' }}</li>
                 </ol>
             </nav>
             <h2>📖 {{ book.name if book else '单词管理' }}</h2>
         </div>
+        <!-- 暂时禁用添加单词功能
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addWordModal">
             <i class="bi bi-plus-lg"></i> 添加单词
         </button>
+        -->
     </div>
 
     <div class="card mb-4">
         <div class="card-body">
-            <form class="row g-3" method="GET" action="{{ url_for('words_page') }}">
+            <form class="row g-3" method="GET" action="{{ url_for('words.word_list') }}">
                 <input type="hidden" name="book_id" value="{{ request.args.get('book_id', '') }}">
                 <div class="col-md-4">
                     <input type="text" class="form-control" name="q" placeholder="搜索单词..." value="{{ request.args.get('q', '') }}">
@@ -104,13 +106,13 @@
             <nav>
                 <ul class="pagination mb-0">
                     <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('words_page', page=current_page-1, book_id=request.args.get('book_id', ''), q=request.args.get('q', ''), status=request.args.get('status', '')) }}">上一页</a>
+                        <a class="page-link" href="{{ url_for('words.word_list', page=current_page-1, book_id=request.args.get('book_id', ''), q=request.args.get('q', ''), status=request.args.get('status', '')) }}">上一页</a>
                     </li>
                     <li class="page-item disabled">
                         <span class="page-link">{{ current_page }} / {{ total_pages }}</span>
                     </li>
                     <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
-                        <a class="page-link" href="{{ url_for('words_page', page=current_page+1, book_id=request.args.get('book_id', ''), q=request.args.get('q', ''), status=request.args.get('status', '')) }}">下一页</a>
+                        <a class="page-link" href="{{ url_for('words.word_list', page=current_page+1, book_id=request.args.get('book_id', ''), q=request.args.get('q', ''), status=request.args.get('status', '')) }}">下一页</a>
                     </li>
                 </ul>
             </nav>
@@ -155,7 +157,7 @@
 
 {% block scripts %}
 <script>
-const API_ADD_WORD_URL = "{{ url_for('add_word') }}";
+// const API_ADD_WORD_URL = "{{ url_for('words.word_list') }}";  // 暂时禁用
 const API_BINDING_URL_PREFIX = "/api/words/";
 
 async function saveWord() {

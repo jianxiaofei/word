@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
-"""单词解析模块 - 支持多种格式"""
+"""单词解析模块 - 支持 TXT 和 CSV 格式"""
 
 import re
 import csv
 from pathlib import Path
 from typing import List, Dict, Optional
-import pandas as pd
 
 
 class WordParser:
@@ -19,9 +18,7 @@ class WordParser:
     def detect_format(file_path: str) -> str:
         """检测文件格式"""
         suffix = Path(file_path).suffix.lower()
-        if suffix in ['.xlsx', '.xls']:
-            return 'excel'
-        elif suffix == '.csv':
+        if suffix == '.csv':
             return 'csv'
         elif suffix == '.txt':
             return 'txt'
@@ -80,50 +77,7 @@ class WordParser:
     
     def parse_excel(self, file_path: str) -> List[Dict[str, str]]:
         """解析 Excel 格式
-        期望格式: word,phonetic,definition 或 word,definition
-        """
-        words = []
-        
-        try:
-            df = pd.read_excel(file_path)
-            
-            # 标准化列名（转小写）
-            df.columns = df.columns.str.strip().str.lower()
-            
-            # 尝试多种列名映射
-            col_mapping = {}
-            for col in df.columns:
-                if col in ['word', '单词']:
-                    col_mapping['word'] = col
-                elif col in ['phonetic', '音标']:
-                    col_mapping['phonetic'] = col
-                elif col in ['definition', '释义', 'meaning', '意思']:
-                    col_mapping['definition'] = col
-            
-            if 'word' not in col_mapping or 'definition' not in col_mapping:
-                raise ValueError("Excel file must contain 'word' and 'definition' columns")
-            
-            for _, row in df.iterrows():
-                word = str(row[col_mapping['word']]).strip()
-                definition = str(row[col_mapping['definition']]).strip()
-                phonetic = str(row.get(col_mapping.get('phonetic', ''), '')).strip()
-                
-                # 跳过空行
-                if word and word != 'nan' and definition and definition != 'nan':
-                    words.append({
-                        'word': word,
-                        'phonetic': phonetic if phonetic != 'nan' else '',
-                        'definition': definition
-                    })
-            
-        except Exception as e:
-            raise ValueError(f"Failed to parse Excel file: {str(e)}")
-        
-        return words
-    
-    def parse(self, file_path: str = None) -> List[Dict[str, str]]:
-        """自动检测格式并解析"""
-        file_path = file_path or self.file_path
+        期望格式:path = file_path or self.file_path
         if not file_path:
             raise ValueError("No file path provided")
         
@@ -145,3 +99,5 @@ class WordParser:
         if not self.words:
             self.parse()
         return len(self.words)
+se:
+            raise ValueError(f"Unsupported file format: {Path(file_path).suffix}. Only .txt and .csv are supported.
