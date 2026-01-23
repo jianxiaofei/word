@@ -30,6 +30,7 @@ scripts/remote_deploy.sh
 *.log
 logs/*.log
 logs/
+docs/
 backups/
 word_history.json
 src/data/word_history.json
