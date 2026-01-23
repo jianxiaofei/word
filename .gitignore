@@ -37,8 +37,12 @@ resources/word_history.json
 word_system.log
 cron.log
 
-# 部署相关（可能包含敏感信息）
+# 部署和学习笔记（可能包含敏感信息或临时记录）
 DEPLOYMENT.md
+docs/DEPLOYMENT_OPTIMIZATION.md
+docs/deploy/
+docs/python_base/
+docs/tests/
 
 # IDE
 .vscode/
