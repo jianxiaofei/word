@@ -2,6 +2,10 @@
 
 {% block title %}我的单词 - 单词学习系统{% endblock %}
 
+{% block breadcrumb %}
+<li class="breadcrumb-item active" aria-current="page">我的单词</li>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -23,9 +27,11 @@
             <a class="btn btn-outline-secondary me-2" href="{{ url_for('words.my_words') }}">
                 <i class="bi bi-arrow-clockwise"></i> 查看全部
             </a>
+            {% if session.get('is_admin') %}
             <a class="btn btn-outline-primary" href="{{ url_for('words.word_list') }}">
                 <i class="bi bi-list-check"></i> 返回单词列表
             </a>
+            {% endif %}
         </div>
     </div>
 

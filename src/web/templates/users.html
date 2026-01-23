@@ -112,17 +112,24 @@
                 <h5 class="modal-title">添加用户</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('users.add_user') }}">
+            <form method="POST" action="{{ url_for('users.add_user') }}" id="addUserForm" onsubmit="return validateAddUserForm()">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">用户名</label>
-                        <input type="text" class="form-control" name="username" required minlength="3">
+                        <input type="text" class="form-control" name="username" id="addUsername" required minlength="3">
                         <div class="form-text">至少3个字符</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">密码</label>
-                        <input type="password" class="form-control" name="password" required minlength="6">
+                        <input type="password" class="form-control" name="password" id="addPassword" required minlength="6">
                         <div class="form-text">至少6个字符</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">确认密码</label>
+                        <input type="password" class="form-control" id="addPasswordConfirm" required minlength="6">
+                        <div class="invalid-feedback" id="addPasswordError">
+                            两次输入的密码不一致
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -180,6 +187,30 @@
 </div>
 
 <script>
+function validateAddUserForm() {
+    const password = document.getElementById('addPassword').value;
+    const passwordConfirm = document.getElementById('addPasswordConfirm').value;
+    const passwordConfirmInput = document.getElementById('addPasswordConfirm');
+    const errorDiv = document.getElementById('addPasswordError');
+    
+    if (password !== passwordConfirm) {
+        passwordConfirmInput.classList.add('is-invalid');
+        errorDiv.style.display = 'block';
+        return false;
+    }
+    
+    passwordConfirmInput.classList.remove('is-invalid');
+    errorDiv.style.display = 'none';
+    return true;
+}
+
+// 重置表单时清除验证状态
+document.getElementById('addUserModal').addEventListener('hidden.bs.modal', function () {
+    document.getElementById('addUserForm').reset();
+    document.getElementById('addPasswordConfirm').classList.remove('is-invalid');
+    document.getElementById('addPasswordError').style.display = 'none';
+});
+
 function editUser(userId, username, isActive, isAdmin) {
     document.getElementById('editUserForm').action = `/users/${userId}/edit`;
     document.getElementById('editUsername').value = username;
