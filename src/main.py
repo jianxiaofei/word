@@ -20,7 +20,9 @@ import config
 
 def setup_logging():
     """配置日志"""
-    log_dir = Path(__file__).resolve().parent.parent.parent / 'logs'
+    # 使用项目根目录下的 logs 目录。
+    # 在 Docker 中通常会将 /app/logs 绑定到宿主机，确保日志可持久化。
+    log_dir = Path(__file__).resolve().parent.parent / 'logs'
     log_dir.mkdir(parents=True, exist_ok=True)
     
     log_file = log_dir / 'word_system.log'

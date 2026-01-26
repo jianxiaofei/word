@@ -33,12 +33,41 @@ class EmailChannel(NotificationChannel):
         
         # 加载邮件模板
         template_path = config.get('template_path') or self._get_default_template_path()
+        template_path = self._resolve_template_path(template_path)
         with open(template_path, 'r', encoding='utf-8') as f:
             self.template = Template(f.read())
     
     def _get_default_template_path(self) -> str:
         """获取默认邮件模板路径"""
-        return str(Path(__file__).parent.parent.parent / 'web' / 'templates' / 'email_template.html')
+        # __file__: .../src/core/notifications/channels/email.py
+        # parents[3] -> .../src
+        src_root = Path(__file__).resolve().parents[3]
+        return str(src_root / 'web' / 'templates' / 'email_template.html')
+
+    def _resolve_template_path(self, template_path: str) -> str:
+        """解析模板路径：支持历史路径与多处兜底。"""
+        candidates = []
+
+        if template_path:
+            candidates.append(Path(template_path))
+
+        # 规范默认位置：src/web/templates/email_template.html
+        src_root = Path(__file__).resolve().parents[3]
+        candidates.append(src_root / 'web' / 'templates' / 'email_template.html')
+
+        # 兼容旧版本（历史上有的路径）
+        candidates.append(src_root / 'core' / 'data' / 'email_template.html')
+        candidates.append(src_root / 'data' / 'email_template.html')
+
+        for p in candidates:
+            try:
+                if p and p.exists() and p.is_file():
+                    return str(p)
+            except OSError:
+                continue
+
+        tried = "\n".join([f"- {str(p)}" for p in candidates if p])
+        raise FileNotFoundError(f"邮件模板文件不存在，已尝试以下路径：\n{tried}")
     
     def get_channel_name(self) -> str:
         return 'email'

@@ -15,6 +15,7 @@ usage() {
   --remote-dir      远程部署目录（默认: /root/word）
   --image-tag       镜像版本标签（默认: latest）
   --use-registry    使用镜像仓库（需先配置 REGISTRY 环境变量）
+    --clean-remote    清理远端源码目录（仅保留 compose/.env/volumes 等必要文件）
 
 示例:
     # 本地构建并传输镜像到服务器
@@ -36,6 +37,7 @@ REMOTE_DIR="/root/word"
 IMAGE_TAG="latest"
 USE_REGISTRY=0
 REGISTRY="${REGISTRY:-}"
+CLEAN_REMOTE=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -49,6 +51,8 @@ while [[ $# -gt 0 ]]; do
             IMAGE_TAG="${2:-}"; shift 2 ;;
         --use-registry)
             USE_REGISTRY=1; shift 1 ;;
+        --clean-remote)
+            CLEAN_REMOTE=1; shift 1 ;;
         -h|--help)
             usage; exit 0 ;;
         *)
@@ -106,7 +110,11 @@ fi
 
 echo "服务器架构: $SERVER_ARCH, 构建平台: $PLATFORM"
 
-docker build --platform "$PLATFORM" -t "$FULL_IMAGE_NAME" .
+echo "开始构建镜像..."
+if ! docker build --platform "$PLATFORM" -t "$FULL_IMAGE_NAME" .; then
+    echo "⚠️  BuildKit 构建失败，尝试使用传统 builder 重试（DOCKER_BUILDKIT=0）..." >&2
+    DOCKER_BUILDKIT=0 docker build --platform "$PLATFORM" -t "$FULL_IMAGE_NAME" .
+fi
 
 echo "✓ 镜像构建完成"
 
@@ -141,71 +149,117 @@ fi
 # 3. 同步配置文件
 echo ""
 echo "[3/4] 同步配置文件..."
-ssh "$SERVER_USER@$SERVER_IP" "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/volumes/config' '$REMOTE_DIR/volumes/data' '$REMOTE_DIR/volumes/logs' '$REMOTE_DIR/backups'"
+ssh "$SERVER_USER@$SERVER_IP" "mkdir -p '$REMOTE_DIR' '$REMOTE_DIR/volumes/data' '$REMOTE_DIR/volumes/logs' '$REMOTE_DIR/volumes/nginx' '$REMOTE_DIR/backups'"
+
+# 准备 Nginx 配置（若远端不存在则创建）
+ssh "$SERVER_USER@$SERVER_IP" "REMOTE_DIR='$REMOTE_DIR' bash -s" <<'EOF'
+    set -e
+    cd "$REMOTE_DIR"
+    if [ ! -f "volumes/nginx/default.conf" ]; then
+        echo "创建 Nginx 配置: volumes/nginx/default.conf"
+        cat > volumes/nginx/default.conf <<'END_NGINX'
+server {
+    listen 80;
+    server_name _;
+
+    location = / {
+        return 302 /word-web/;
+    }
+
+    location = /settings { return 302 /word-web/settings; }
+    location = /books    { return 302 /word-web/books; }
+    location = /words    { return 302 /word-web/words; }
+    location = /login    { return 302 /word-web/login; }
+    location = /logout   { return 302 /word-web/logout; }
+
+    location = /ilive { return 301 /word-web/; }
+    location ^~ /ilive/ {
+        rewrite ^/ilive(/.*)$ /word-web$1 permanent;
+    }
+
+    location /api/ {
+        return 302 /word-web$request_uri;
+    }
+
+    location = /word-web {
+        return 301 /word-web/;
+    }
+
+    location /word-web/ {
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Script-Name /word-web;
+
+        proxy_pass http://web:5000;
+        proxy_redirect off;
+    }
+}
+END_NGINX
+    fi
+EOF
 
 # 创建生产环境的 docker-compose.yml
 cat > /tmp/docker-compose.prod.yml << 'EOF'
 services:
-  # Web 统计面板服务
-  web:
-    image: word-app:latest
-    pull_policy: never
-    container_name: word-web
-    restart: unless-stopped
-    expose:
-      - "5000"
-    env_file:
-      - .env
-    volumes:
-      # 挂载配置文件
-      - ./volumes/config/config.py:/app/src/config/config.py:ro
-      # 挂载数据目录和日志
-      - ./volumes/data:/app/src/data
-      - ./volumes/logs:/app/logs
-    environment:
-      - FLASK_APP=src/web/app.py
-      - FLASK_DEBUG=0
-      - TZ=Asia/Shanghai
-      - WEB_SECRET_KEY=${WEB_SECRET_KEY:-}
-      - WEB_ADMIN_USER=${WEB_ADMIN_USER:-admin}
-      - WEB_ADMIN_PASSWORD=${WEB_ADMIN_PASSWORD:-}
-      - WEB_ALLOW_REGISTER=${WEB_ALLOW_REGISTER:-true}
-    command: python -m flask run --host=0.0.0.0
+    # 统一入口反向代理
+    nginx:
+        image: nginx:1.25-alpine
+        container_name: word-nginx
+        restart: unless-stopped
+        depends_on:
+            - web
+        ports:
+            - "80:80"
+        volumes:
+            - ./volumes/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
 
-  # 定时任务调度服务
-  scheduler:
-    image: word-app:latest
-    pull_policy: never
-    container_name: word-scheduler
-    restart: unless-stopped
-    depends_on:
-      - web
-    env_file:
-      - .env
-    volumes:
-      # 挂载配置文件
-      - ./volumes/config/config.py:/app/src/config/config.py:ro
-      - ./volumes/data:/app/src/data
-      - ./volumes/logs:/app/logs
-    environment:
-      - SCHEDULE_TIME=07:30
-      - TZ=Asia/Shanghai
-    command: python scripts/docker_scheduler.py
+    # Web 统计面板服务
+    web:
+        image: word-app:latest
+        pull_policy: never
+        container_name: word-web
+        restart: unless-stopped
+        expose:
+            - "5000"
+        env_file:
+            - .env
+        volumes:
+            - ./volumes/data:/app/src/data
+            - ./volumes/logs:/app/logs
+        environment:
+            - FLASK_APP=src/web/app.py
+            - FLASK_DEBUG=0
+            - TZ=Asia/Shanghai
+            - WEB_SECRET_KEY=${WEB_SECRET_KEY:-}
+            - WEB_ADMIN_USER=${WEB_ADMIN_USER:-admin}
+            - WEB_ADMIN_PASSWORD=${WEB_ADMIN_PASSWORD:-}
+            - WEB_ALLOW_REGISTER=${WEB_ALLOW_REGISTER:-true}
+        command: python -m flask run --host=0.0.0.0
+
+    # 定时任务调度服务
+    scheduler:
+        image: word-app:latest
+        pull_policy: never
+        container_name: word-scheduler
+        restart: unless-stopped
+        depends_on:
+            - web
+        env_file:
+            - .env
+        volumes:
+            - ./volumes/data:/app/src/data
+            - ./volumes/logs:/app/logs
+        environment:
+            - SCHEDULE_TIME=07:30
+            - TZ=Asia/Shanghai
+        command: python scripts/docker_scheduler.py
 EOF
 
 # 上传配置文件
 scp /tmp/docker-compose.prod.yml "$SERVER_USER@$SERVER_IP:$REMOTE_DIR/docker-compose.yml"
 rm /tmp/docker-compose.prod.yml
-
-# 上传必要的配置文件（如果不存在）
-if [[ -f "$PROJECT_ROOT/src/config/config.py" ]]; then
-    ssh "$SERVER_USER@$SERVER_IP" "test -f '$REMOTE_DIR/volumes/config/config.py' || echo '需要配置文件'"
-    read -p "是否上传 src/config/config.py？(y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        scp "$PROJECT_ROOT/src/config/config.py" "$SERVER_USER@$SERVER_IP:$REMOTE_DIR/volumes/config/config.py"
-    fi
-fi
 
 # 检查 .env
 ssh "$SERVER_USER@$SERVER_IP" << EOF
@@ -213,12 +267,24 @@ ssh "$SERVER_USER@$SERVER_IP" << EOF
     if [ ! -f ".env" ]; then
         echo "创建 .env 模板..."
         cat > .env <<'END_ENV'
+# SMTP 配置（至少需要填 SMTP_PASSWORD / EMAIL_* 才能发邮件）
+SMTP_SERVER=smtp.qq.com
+SMTP_PORT=587
+SMTP_USE_TLS=true
+EMAIL_FROM=
+EMAIL_TO=
+SMTP_PASSWORD=
+
+# Web 面板登录（推荐设置）
 WEB_SECRET_KEY=
 WEB_ADMIN_USER=admin
 WEB_ADMIN_PASSWORD=
 WEB_ALLOW_REGISTER=true
+
+# 可选：用于邮件中的交互链接
+SERVER_URL=
 END_ENV
-        echo "⚠️  请编辑 .env 文件配置管理员密码！"
+        echo "⚠️  请编辑 .env 文件，至少补齐 SMTP 与 WEB_* 配置，然后重启容器。"
     fi
 EOF
 
@@ -246,6 +312,11 @@ ssh "$SERVER_USER@$SERVER_IP" << EOF
     
     echo "启动新容器..."
     \$COMPOSE_CMD up -d
+
+    if [ "$CLEAN_REMOTE" = "1" ]; then
+        echo "清理远端源码目录（保留 docker-compose.yml/.env/volumes/backups）..."
+        rm -rf src scripts docs tests resources data || true
+    fi
     
     echo "清理无用镜像..."
     docker image prune -f
